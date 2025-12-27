@@ -1,233 +1,176 @@
-/* body { background-color: red !important; } */
-
-/***************************************
-Template Name: Green Fair
-Author: Md Foysal Ahamed
-Created: July 05 2016
-Version: 1.2
-****************************************/
-
-
-/*CSS Style Structure
-1. General Or Universal code,
-2. Import Google's Fonts,
-3. Header,
-4. Slider,
-5. Welcome,
-6. Volunteer,
-7. Portfolio,
-8. Achivment,
-9. Event,
-10. Testimonial,
-11. Latest Blog,
-12. Purches,
-13. Contact,
-14. Footer.
-*/
-
-
-/*
-font-family: 'Roboto Slab', serif;
-*/
-
-@import url(https://fonts.googleapis.com/css?family=Roboto+Slab:400,700,300,100);
-
-/*
-font-family: 'Lato', sans-serif;
-*/
-
-@import url(https://fonts.googleapis.com/css?family=Lato:400,100,100italic,300,300italic,400italic,700,700italic,900,900italic);
-
-/*
-font-family: 'Raleway', sans-serif;
-*/
-
-@import url(https://fonts.googleapis.com/css?family=Raleway:400,100,200,300,500,600,700,800,900);
-
-/*
-font-family: 'Open Sans', sans-serif;
-*/
-
-@import url(https://fonts.googleapis.com/css?family=Open+Sans:400,300,300italic,400italic,600,600italic,700italic,700,800,800italic);
-
-/*
-font-family: 'Roboto', sans-serif;
-*/
-
-@import url(https://fonts.googleapis.com/css?family=Roboto:400,100,100italic,300,300italic,400italic,500,500italic,700,700italic,900,900italic);
-
-/* 보내주신 index.html과 style.css의 문제점(로그인 창 비대화)을 해결하기 위해, 로그인 바 전용 보정 코드를 포함하여 최종적으로 완성된 스타일시트를 만들어 드립니다.
-
-이 코드를 style.css 파일에 전체 덮어쓰기 하시면 됩니다.
-
-🎨 최종 완성된 style.css
-CSS */
-
-/* 메인페이지의 레이아웃이 깨지는 근본적인 원인은 CSS의 공통 스타일(*)이 모든 요소에 강제 적용되었기 때문입니다. 이를 해결하기 위해 **접수 현황 페이지만을 위한 전용 클래스(.receipt-board-page)**로 스타일을 완전히 격리하면서, 요청하신 버튼 스타일과 틀 고정 기능을 최적화하여 정리해 드립니다.
-
-아래 내용을 style.css 파일에 덮어쓰기 하세요.
-
-수정된 style.css (통합 스타일시트)
-CSS */
-
-
-
-
-
-
-/* * 한국건설품질시험원(주) - 통합 스타일시트 
- * 최종 수정: 2025. 12. 26 (레이아웃 격리 및 우측 정렬 최적화)
+/* * 한국건설품질시험원(주) - 로그인 바 전용 스타일시트 
+ * 최종 수정: 2025. 12. 26
  */
 
-/* 1. 공통 및 메인 레이아웃 */
-body { font-family: 'Pretendard', -apple-system, sans-serif; margin: 0; padding: 0; line-height: 1.6; color: #333; }
-.header-main { padding: 20px 0; background: #fff; border-bottom: 2px solid #0089a7; }
-.institute-title { font-size: 40px !important; font-weight: 800; color: #004680; letter-spacing: -1.5px; }
-.main-menu-bar { background-color: #0089a7; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-.main-menu-bar .nav-link { color: white !important; padding: 15px 25px !important; font-weight: 600; }
-
-/* 메인 슬라이더 */
-.main-hero-slider .slide-item {
-    height: 550px !important; 
-    background-size: cover !important; background-position: center !important; background-repeat: no-repeat !important;
-    image-rendering: -webkit-optimize-contrast;
-    display: flex !important; align-items: center; justify-content: center; position: relative;
-}
-.main-hero-slider .slide-item::before { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.2); z-index: 1; }
-.slide-content { position: relative; z-index: 2; color: white; text-align: center; text-shadow: 2px 2px 15px rgba(0,0,0,0.6); }
-
-/* --- [공통 요소 스타일] --- */
-.receipt-board-page * { box-sizing: border-box; }
-.receipt-board-page .content-container { padding: 30px; background-color: #f8f9fa; min-height: 100vh; }
-
-/* 공통 버튼 디자인 */
-.receipt-board-page .btn-sm {
-    height: 32px !important; padding: 0 12px !important; font-size: 12.5px !important;
-    font-weight: 600 !important; white-space: nowrap !important;
-    display: inline-flex; align-items: center; border-radius: 4px; border: none !important;
-    color: white !important; box-shadow: 0 2px 4px rgba(0,0,0,0.15); cursor: pointer;
-}
-.receipt-board-page .btn-sm i { margin-right: 5px; }
-
-/* 버튼 색상군 */
-.receipt-board-page .bg-db-save { background-color: #a52a2a !important; }
-.receipt-board-page .bg-view-blue { background-color: #0d6efd !important; }
-.receipt-board-page .bg-excel { background-color: #198754 !important; }
-.receipt-board-page .bg-view-cyan { background-color: #197a87 !important; }
-.receipt-board-page .bg-view-yellow { background-color: #ffc107 !important; color: #333 !important; }
-
-/* --- [페이지별 레이아웃 격리] --- */
-
-/* A. 접수 현황 페이지 (Board) - 왼쪽 정렬 */
-.receipt-board-page .board-header-area {
-    display: flex;
-    justify-content: flex-start; /* 왼쪽 정렬 */
-    align-items: flex-end;
-    gap: 15px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
+/* --- [1. 기본 설정] --- */
+body { 
+    font-family: 'Pretendard', -apple-system, sans-serif; 
+    margin: 0; 
+    padding: 0; 
 }
 
-/* B. 데이터 저장 페이지 (Save) - 오른쪽 정렬 */
-.receipt-board-page .save-header-area {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important; /* 오른쪽 정렬 */
-    width: 100% !important;
-    gap: 10px;
-    margin-bottom: 25px;
+/* --- [2. 최상단 로그인/인증 바 스타일] --- */
+/* 바 전체 배경 및 높이 설정 */
+.top-auth-bar { 
+    background-color: #f8f9fa; 
+    border-bottom: 1px solid #eee; 
+    padding: 8px 0; 
 }
 
-/* 로그인 정보 배지 */
-.receipt-board-page .user-info-badge {
-    background-color: #fff; padding: 6px 18px; border-radius: 20px;
-    border: 1px solid #dee2e6; font-size: 14px; color: #444;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    display: inline-flex; align-items: center;
+/* [중요] 로그인 입력창(아이디/비밀번호) 크기를 작게 강제 고정 */
+.top-auth-bar .auth-input {
+    width: 140px !important;      /* 가로 길이를 140px로 제한 */
+    height: 28px !important;      /* 높이를 28px로 제한 */
+    font-size: 12px !important;   /* 글자 크기 축소 */
+    padding: 2px 8px !important; 
+    display: inline-block !important; /* 가로로 나열 */
 }
 
-/* --- [테이블 및 입력 영역] --- */
-.receipt-board-page .table-responsive-custom {
-    background: white; border: 1px solid #dee2e6; overflow: auto;
-    max-height: 700px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-}
-.receipt-board-page .data-table { width: max-content !important; border-collapse: separate !important; table-layout: fixed; }
-.receipt-board-page .data-table th {
-    background-color: #004680 !important; color: white !important; font-weight: 600;
-    position: sticky; top: 0; z-index: 30; border-bottom: 1px solid #003366; border-right: 1px solid #003366;
-}
-.receipt-board-page .data-table td { padding: 10px 5px !important; font-size: 13px; text-align: center; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6; white-space: nowrap; }
-
-/* 틀 고정 (1~2번 칼럼) */
-.receipt-board-page .sticky-1 { position: sticky; left: 0; width: 50px; z-index: 21 !important; }
-.receipt-board-page .sticky-2 { position: sticky; left: 50px; width: 120px; z-index: 21 !important; border-right: 3px double #004680 !important; }
-.receipt-board-page td.sticky-1, .receipt-board-page td.sticky-2 { background-color: #fcfcfc !important; position: sticky; }
-
-/* 중앙 입력 영역 (Save 페이지용) */
-.receipt-board-page .content-body-section {
-    background: white; border: 1px solid #dee2e6; border-radius: 8px;
-    min-height: 450px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+/* 로그인/회원가입 버튼 크기 조정 */
+.top-auth-bar .btn-sm { 
+    height: 28px !important; 
+    font-size: 12px !important; 
+    padding: 0 10px !important; 
+    display: inline-flex; 
+    align-items: center; 
+    line-height: 1;
 }
 
-/* 접수 현황 페이지 상단 컨트롤 (안내문구와 버튼들을 가로로 정렬) */
-.receipt-board-page .top-controls {
-    display: flex;
-    justify-content: space-between; /* 문구는 왼쪽, 버튼은 오른쪽 */
-    align-items: flex-end;         /* 바닥선 맞춤 */
-    margin-bottom: 15px;
-    gap: 10px;
+/* 로그인 후 "OOO님 환영합니다" 텍스트 스타일 */
+.top-auth-bar span { 
+    font-size: 13px; 
+    color: #555; 
 }
 
-/* 안내 문구가 버튼 때문에 줄바꿈 되지 않도록 고정 */
-.receipt-board-page .info-text {
-    white-space: nowrap;
-    font-size: 13.5px;
-    color: #666;
+/* 여기부터 메뉴바 */
+/* 청록색 메뉴바 스타일 */
+.main-menu-bar {
+    background-color: #0089a7 !important; /* 사진 속 청록색상 */
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* 약간의 그림자 */
 }
 
-/* 버튼들을 묶어주는 그룹 */
-.receipt-board-page .action-button-group {
-    display: flex;
-    gap: 5px;
-    flex-wrap: nowrap; /* 화면이 좁아져도 버튼이 아래로 떨어지지 않게 함 */
+.main-menu-bar .nav-link {
+    color: white !important;      /* 흰색 글자 */
+    font-size: 16px !important;   /* 적당한 글자 크기 */
+    font-weight: 600 !important;  /* 약간 두껍게 */
+    padding: 12px 30px !important; /* 좌우 여백을 넓게 하여 사진과 맞춤 */
+    transition: all 0.3s ease;
 }
 
-/* 데이터 저장 팝업 페이지 전용: 상단 영역 강제 정렬 */
-.receipt-board-page .save-header-area {
-    display: block !important; /* 수직 쌓기를 위해 block으로 변경 */
-    width: 100% !important;
-    text-align: right !important; /* 내부의 인라인 요소들을 오른쪽으로 */
-    margin-bottom: 25px !important;
-    padding-right: 10px !important;
+/* 마우스 올렸을 때 효과 */
+.main-menu-bar .nav-link:hover {
+    background-color: rgba(0, 0, 0, 0.1); /* 살짝 어두워짐 */
+    color: #e0f7fa !important;
 }
 
-/* 2. 로그인 정보 배지 스타일링 */
-.receipt-board-page .save-header-area .user-info-badge {
-    background-color: #fff;
-    padding: 6px 16px;
-    border-radius: 20px;
+/* 부트스트랩 기본 여백 제거 (띠 모양을 꽉 채우기 위함) */
+.main-menu-bar .nav {
+    margin-bottom: 0;
+}
+
+/* 여기부터 서브 메뉴 */
+/* --- 서브 메뉴 슬라이딩 스타일 --- */
+
+/* 1. 메뉴 아이템 위치 고정 */
+.dropdown-container {
+    position: relative;
+}
+
+/* 2. 서브 메뉴 레이아웃 (평소 숨김) */
+.sliding-submenu {
+    position: absolute;
+    top: 100%;             /* 메인 메뉴 바로 아래 */
+    left: 50%;
+    transform: translateX(-50%); /* 중앙 정렬 */
+    width: 200px;          /* 서브메뉴 너비 */
+    background: #ffffff;   /* 흰색 배경 */
     border: 1px solid #dee2e6;
+    border-top: none;
+    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    z-index: 1000;
+    
+    /* 슬라이딩 애니메이션 설정 */
+    max-height: 0;         /* 높이 0으로 숨김 */
+    overflow: hidden;      /* 넘치는 내용 숨김 */
+    transition: max-height 0.4s ease-in-out; /* 부드럽게 펼쳐짐 */
+}
+
+/* 3. 마우스 올렸을 때(Hover) 펼쳐지기 */
+.dropdown-container:hover .sliding-submenu {
+    max-height: 300px;     /* 충분한 높이로 확장 */
+}
+
+/* 4. 서브 메뉴 내부 리스트 스타일 */
+.submenu-list {
+    list-style: none;
+    padding: 10px 0;
+    margin: 0;
+    text-align: center;
+}
+
+.submenu-list li a {
+    display: block;
+    padding: 12px 20px;
+    color: #333 !important;
+    text-decoration: none;
     font-size: 14px;
-    color: #444;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    display: inline-flex !important; /* 배지 모양 유지 */
-    margin-bottom: 10px !important;
+    font-weight: 500;
+    transition: background 0.3s;
 }
 
-/* 3. 버튼 그룹 우측 정렬 */
-.receipt-board-page .save-header-area .action-button-group {
-    display: flex !important;
-    justify-content: flex-end !important; /* 버튼 뭉치를 오른쪽 끝으로 */
-    gap: 8px !important;
+/* 5. 서브 메뉴 항목 마우스 오버 효과 */
+.submenu-list li a:hover {
+    background-color: #f1f3f5;
+    color: #0089a7 !important; /* 시험원 포인트 컬러 */
 }
 
-/* 4. 중앙 입력 폼 섹션 (기존 코드 삭제 후 교체) */
-.receipt-board-page .content-body-section {
-    clear: both !important;
-    background: white;
+/* 메인 메뉴 텍스트 아래 쪽에 마우스가 닿아도 메뉴가 닫히지 않도록 패딩 조정 */
+.main-menu-bar .nav-item {
+    padding-bottom: 2px;
+}
+
+
+/* 여기서부터 새창 */
+/* 1. 로그인 바 내부 팝업 컨트롤 버튼 (높이 28px로 로그인 폼과 통일) */
+/* .popup-controls .btn {
+    height: 28px !important;    
+    font-size: 12px !important;
+    padding: 0 12px !important;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 4px;
+    font-weight: 600;
+    border: none !important;
+} */
+
+/* 2. 버튼 색상 (중요: 배경색 강제 지정) */
+/* 엑셀 불러오기: 녹색 */
+/* .bg-excel { 
+    background-color: #198754 !important; 
+    color: #ffffff !important;
+}
+.bg-excel:hover { background-color: #157347 !important; } */
+
+/* DB 저장하기: 진한 갈색/빨강 */
+/* .bg-db-save { 
+    background-color: #a52a2a !important; 
+    color: #ffffff !important;
+}
+.bg-db-save:hover { background-color: #8b2323 !important; } */
+
+/* 3. 데이터 입력 영역 (본문 섹션) */
+.content-body-section {
+    background: #ffffff;
     border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 30px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    min-height: 450px;
+    border-radius: 0 0 8px 8px; /* 하단 라운딩 */
+    padding: 20px;
+    min-height: 600px;         /* 작업 공간 확보 */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
+
+/* 4. [추가] 팝업창 전용 배경색 (작업 집중도를 위해 살짝 어둡게) */
+body.popup-body {
+    background-color: #f4f7f9;
+}
+

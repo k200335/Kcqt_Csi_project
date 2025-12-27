@@ -37,3 +37,4 @@ def save_csi_receipt(request):
     # 아직 HTML 파일명이 정확하지 않다면 templates 폴더 안에 
     # save_csi_receipt.html 이라는 이름으로 파일을 저장해 두어야 합니다.
     return render(request, 'save_csi_receipt.html')
+

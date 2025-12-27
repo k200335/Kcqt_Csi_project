@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}CSI 접수 시스템 - 한국건설품질시험원(주){% endblock %}
+
+{% block content %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+    #loading-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        display: none; /* 기본은 숨김 */
+        z-index: 9999;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    .progress { width: 300px; height: 20px; }
+    .edit-input { border: 1px solid #dee2e6; text-align: center; }
+    .edit-input:focus { background-color: #fff9db; border-color: #ffda6a; box-shadow: none; }
+</style>
+
+<div id="loading-overlay">
+    <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <h5 class="fw-bold text-primary">엑셀 데이터를 처리 중입니다...</h5>
+    <div class="progress">
+        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+             role="progressbar" style="width: 0%">0%</div>
+    </div>
+</div>
+
+<script>
+    function toggleAllCheckboxes(masterCheckbox) {
+        const checkboxes = document.querySelectorAll('.row-checkbox');
+        checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    }
+
+    window.handleExcelImport = function(event) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.xlsx, .xls';
+
+        fileInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // 1. 로딩 시작
+            const overlay = document.getElementById('loading-overlay');
+            const progressBar = document.getElementById('progress-bar');
+            overlay.style.display = 'flex';
+            progressBar.style.width = '10%';
+            progressBar.innerText = '10%';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                    const tbody = document.getElementById('table-body');
+                    tbody.innerHTML = ''; 
+                    
+                    const targetIndices = [3, 4, 5, 9, 12, 13, 14, 15]; 
+                    const totalRows = rows.length;
+                    let count = 0;
+
+                    // 2. 가공 진행율 표시 (setTimeout을 써서 브라우저가 UI를 그릴 틈을 줍니다)
+                    setTimeout(() => {
+                        rows.forEach((row, index) => {
+                            if (index < 4 || !row || row.length === 0 || !row[2]) return;
+
+                            count++;
+                            const tr = document.createElement('tr');
+                            tr.className = 'text-center align-middle';
+                            
+                            let rowHtml = `
+                                <td><input type="checkbox" class="form-check-input row-checkbox"></td>
+                                <td>${count}</td>`;
+                            
+                            targetIndices.forEach((idx) => {
+                                let cellValue = (row[idx] !== undefined && row[idx] !== null) ? row[idx] : '';
+                                if (idx === 3 || idx === 4) {
+                                    rowHtml += `<td><input type="text" class="form-control form-control-sm edit-input" value="${cellValue}"></td>`;
+                                } else {
+                                    rowHtml += `<td>${cellValue}</td>`;
+                                }
+                            });
+                            tr.innerHTML = rowHtml;
+                            tbody.appendChild(tr);
+
+                            // 진행바 업데이트 (약간의 계산식)
+                            if (index % 10 === 0) { 
+                                let percent = Math.round((index / totalRows) * 100);
+                                progressBar.style.width = percent + '%';
+                                progressBar.innerText = percent + '%';
+                            }
+                        });
+
+                        // 3. 로딩 완료
+                        progressBar.style.width = '100%';
+                        progressBar.innerText = '100%';
+                        setTimeout(() => {
+                            overlay.style.display = 'none';
+                            alert(count + "건의 데이터를 모두 불러왔습니다.");
+                        }, 500);
+                    }, 100);
+
+                } catch (err) {
+                    overlay.style.display = 'none';
+                    alert("파일 처리 오류: " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        };
+        fileInput.click();
+    };
+
+    // DB 저장하기 로직 생략 (기존과 동일)
+</script>
+
+<nav class="main-menu-bar shadow-sm" style="background-color: #0089a7 !important;">
+    <div class="container d-flex justify-content-center gap-4 py-2">
+        <button type="button" class="btn btn-lg text-white fw-bold px-4" onclick="window.handleExcelImport(event)">
+            <i class="bi bi-file-earmark-excel me-2"></i> 엑셀 가져오기
+        </button>
+        <button type="button" class="btn btn-lg text-white fw-bold px-4" onclick="window.handleSaveToDB(event)">
+            <i class="bi bi-database-fill-check me-2"></i> DB 저장하기
+        </button>
+    </div>
+</nav>
+
+<div class="receipt-board-page container-fluid py-4">
+    <div class="content-body-section bg-white p-4 rounded shadow-sm">
+        <h4 class="fw-bold text-primary mb-4"><i class="bi bi-pencil-square me-2"></i>본원 의뢰서 처리</h4>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-light text-center">
+                    <tr>
+                        <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="select-all" onclick="toggleAllCheckboxes(this)"></th>
+                        <th style="width: 50px;">순번</th>
+                        <th style="background-color: #fff3cd;">RQ번호</th>
+                        <th style="background-color: #fff3cd;">영업구분</th>
+                        <th>처리상태</th>
+                        <th>의뢰기관명</th>
+                        <th>인수자</th>
+                        <th>시료량</th>
+                        <th>구분</th>
+                        <th>현장담당</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

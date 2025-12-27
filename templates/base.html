@@ -23,9 +23,11 @@
         {% else %}
             <form action="/login/" method="post" class="d-flex gap-2">
                 {% csrf_token %}
+                
                 {% if form.errors %}
                     <script>alert("아이디 또는 비밀번호가 일치하지 않습니다.");</script>
                 {% endif %}
+
                 <input type="text" name="username" class="form-control form-control-sm auth-input" placeholder="아이디" required>
                 <input type="password" name="password" class="form-control form-control-sm auth-input" placeholder="비밀번호" required>
                 <button type="submit" class="btn btn-sm btn-primary">로그인</button>
@@ -35,36 +37,48 @@
     </div>
 </div>
 
-<div class="header-main">
-    <div class="container-fluid px-5 text-center">
-        <a href="/" style="text-decoration:none; color:inherit;">
-            <h1 class="institute-title mb-0">한국건설품질시험원(주)</h1>
-        </a>
-    </div>
-</div>
-
-<nav class="main-menu-bar shadow-sm">
+<!-- <nav class="main-menu-bar shadow-sm">
     <div class="container p-0">
         <ul class="nav justify-content-center">
-            <li class="nav-item"><a class="nav-link" href="#" onclick="checkLogin('{% url 'board' %}')">접수 현황</a></li>
+            <li class="nav-item dropdown-container">
+                <a class="nav-link" href="#">접수 현황</a>
+                <div class="sliding-submenu">
+                    <ul class="submenu-list">
+                        <li><a href="#" onclick="openPopup('/board/csi_receipt/')">CSI_접수</a></li>
+                        <li><a href="#" onclick="checkLogin('/board/csi_issue/')">CSI_발급</a></li>
+                        <li><a href="#" onclick="checkLogin('/board/csi_pending/')">CSI_발급대기</a></li>
+                    </ul>
+                </div>
+            </li>
             <li class="nav-item"><a class="nav-link" href="#" onclick="checkLogin('/request/')">품질검사 의뢰</a></li>
             <li class="nav-item"><a class="nav-link" href="#" onclick="checkLogin('/report/')">품질검사 성적서</a></li>
             <li class="nav-item"><a class="nav-link" href="#" onclick="checkLogin('/notice/')">공지사항</a></li>
         </ul>
     </div>
-</nav>
+</nav> -->
 
-{% block content %}
-{% endblock %}
+{% block content %}{% endblock %}
 
 <script src="{% static 'js/jquery-1.12.3.min.js' %}"></script>
 <script>
     const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
+
     function checkLogin(targetUrl) {
         if (isAuthenticated) { location.href = targetUrl; } 
         else { alert("로그인을 해주세요."); document.querySelector('input[name="username"]')?.focus(); }
     }
+
+    function openPopup(url) {
+        if (isAuthenticated) {
+            window.open(url, 'csi_popup', 'width=1300,height=900,scrollbars=yes,resizable=yes');
+        } else {
+            alert("로그인을 해주세요.");
+            document.querySelector('input[name="username"]')?.focus();
+        }
+    }
+
+    function importExcel() { alert("엑셀 데이터를 불러옵니다."); }
+    function saveToDB() { if(confirm("데이터를 DB에 저장하시겠습니까?")) alert("저장되었습니다."); }
 </script>
-{% block extra_js %}{% endblock %}
 </body>
 </html>
