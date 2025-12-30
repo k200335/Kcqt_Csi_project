@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.views.generic import TemplateView
 from board.views import receipt_list
+from board import views
 
 # 1. 회원가입 로직
 def signup(request):
@@ -40,4 +41,6 @@ urlpatterns = [
 
     # [핵심 수정] CSI_접수 팝업 경로 추가 (404 에러 해결)
     path('board/csi_receipt/', csi_receipt_view, name='csi_receipt'),
+
+    path('fetch-csi/', views.fetch_csi_data, name='fetch_csi_data'),
 ]

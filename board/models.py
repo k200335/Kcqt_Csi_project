@@ -2,14 +2,20 @@
 from django.db import models
 
 class OuterreceiptNew(models.Model):
-    # 실제 DB에 존재하는 idx를 기본키로 설정
-    idx = models.AutoField(primary_key=True) 
-    
-    # 요청하신 3개 컬럼 (DB 대소문자 명칭과 db_column을 일치시킴)
+    idx = models.AutoField(primary_key=True)
     receiptcode = models.CharField(db_column='receiptCode', max_length=10, blank=True, null=True)
     rqcode = models.CharField(db_column='rqCode', max_length=14, blank=True, null=True)
     accode = models.CharField(db_column='acCode', max_length=14, blank=True, null=True)
+    
+    # --- [CSI에서 긁어온 데이터를 저장할 칸 추가] ---
+    receipt_no = models.CharField(max_length=50, blank=True, null=True)      # 접수번호
+    current_status = models.CharField(max_length=50, blank=True, null=True)  # 최종진행상태
+    client_name = models.CharField(max_length=100, blank=True, null=True)    # 의뢰기관
+    receipt_date = models.CharField(max_length=50, blank=True, null=True)    # 접수일시
+    seal_name = models.CharField(max_length=50, blank=True, null=True)       # 봉인자 성명
+    picker_name = models.CharField(max_length=50, blank=True, null=True)     # 채취자 성명
+    project_name = models.TextField(blank=True, null=True)                  # 공사명
 
     class Meta:
-        managed = False  # 기존 DB 보호
-        db_table = 'OuterReceipt'  # dbo.OuterReceipt 테이블을 바라봄
+        managed = False  # 기존 DB를 사용하는 경우 False 유지
+        db_table = 'OuterReceipt'

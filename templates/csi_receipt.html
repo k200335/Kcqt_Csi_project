@@ -126,16 +126,79 @@
     // DB 저장하기 로직 생략 (기존과 동일)
 </script>
 
+
 <nav class="main-menu-bar shadow-sm" style="background-color: #0089a7 !important;">
     <div class="container d-flex justify-content-center gap-4 py-2">
         <button type="button" class="btn btn-lg text-white fw-bold px-4" onclick="window.handleExcelImport(event)">
             <i class="bi bi-file-earmark-excel me-2"></i> 엑셀 가져오기
+        </button>
+        <button type="button" class="btn btn-lg btn-warning fw-bold px-4" onclick="window.fetchCsiData(event)">
+            <i class="bi bi-cloud-download-fill me-2"></i> CSI 불러오기
         </button>
         <button type="button" class="btn btn-lg text-white fw-bold px-4" onclick="window.handleSaveToDB(event)">
             <i class="bi bi-database-fill-check me-2"></i> DB 저장하기
         </button>
     </div>
 </nav>
+
+<script>
+    // [추가된 CSI 데이터 가져오기 스크립트]
+    window.fetchCsiData = function(event) {
+        if (event) event.preventDefault();
+
+        // 1. 체크된 행에서 RQ번호 수집
+        const selectedCheckboxes = document.querySelectorAll('.row-checkbox:checked');
+        if (selectedCheckboxes.length === 0) {
+            alert("조회할 의뢰서(RQ번호)를 선택해주세요.");
+            return;
+        }
+
+        const rqNumbers = [];
+        selectedCheckboxes.forEach(cb => {
+            const row = cb.closest('tr');
+            const rqInput = row.querySelector('.edit-input'); // RQ번호가 들어있는 input
+            if (rqInput) rqNumbers.push(rqInput.value);
+        });
+
+        // 2. 로딩 오버레이 켜기
+        const overlay = document.getElementById('loading-overlay');
+        const progressBar = document.getElementById('progress-bar');
+        const loadingText = overlay.querySelector('h5');
+        
+        overlay.style.display = 'flex';
+        loadingText.innerText = "CSI 시스템에서 데이터를 가져오는 중입니다...";
+        progressBar.style.width = '10%';
+        progressBar.innerText = '10%';
+
+        // 3. Django 백엔드(views.py)로 전송
+        fetch("{% url 'fetch_csi_data' %}", { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ rq_numbers: rqNumbers })
+            })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                progressBar.style.width = '100%';
+                progressBar.innerText = '100%';
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    alert(data.message);
+                    location.reload(); // 데이터 갱신을 위해 새로고침
+                }, 500);
+            } else {
+                throw new Error(data.message);
+            }
+        })
+        .catch(err => {
+            overlay.style.display = 'none';
+            alert("오류 발생: " + err.message);
+        });
+    };
+</script>
 
 <div class="receipt-board-page container-fluid py-4">
     <div class="content-body-section bg-white p-4 rounded shadow-sm">
