@@ -52,107 +52,98 @@ def save_csi_receipt(request):
 
 def fetch_csi_data(request):
     if request.method == 'POST':
-        driver = None  # 오류 발생 시 브라우저를 닫기 위해 미리 선언
+        driver = None
         try:
-            # 1) JSON 데이터 로드
             data = json.loads(request.body)
             rq_numbers = data.get('rq_numbers', [])
             
             if not rq_numbers:
                 return JsonResponse({'status': 'error', 'message': '선택된 RQ번호가 없습니다.'})
 
-            # 2) 셀레늄 브라우저 설정
+            # 1) 셀레늄 브라우저 설정
             chrome_options = Options()
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
-            chrome_options.add_experimental_option("detach", True)
-            
-            # [중요] 드라이버는 여기서 '딱 한 번'만 생성합니다. (기존 중복 코드 제거)
+            # 창이 자꾸 안 열리면 아래 주석을 해제해서 실제 브라우저가 뜨는지 확인해 보세요.
+            # chrome_options.add_argument("--start-maximized") 
+
             driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+            wait = WebDriverWait(driver, 10) # 속도가 빠를 때는 20초 정도면 충분합니다.
+
+            # 2) CSI 사이트 접속 및 로그인
+            driver.get("https://gcloud.csi.go.kr/cmq/main.do")
             
-            # 3) CSI 사이트 접속 및 로그인
-            driver.get("https://gcloud.csi.go.kr/cmq/main.do") # 실제 접속 주소 추가
-            time.sleep(1)
-            
-            driver.find_element(By.ID, "userId").send_keys("youngjun") 
+            # ID 입력창 대기 및 입력
+            user_input = wait.until(EC.element_to_be_clickable((By.ID, "userId")))
+            user_input.send_keys("youngjun") 
             driver.find_element(By.ID, "pswd").send_keys("k*1800*92*")
             driver.find_element(By.CLASS_NAME, "login-btn").click()
+            
+            # 로그인 성공 후 게시판으로 직접 이동
             time.sleep(2)
-
-
             driver.get("https://gcloud.csi.go.kr/cmq/qtr/qltRqst/rqstRcvList.do") 
-            time.sleep(2) # 게시판 로딩 대기
+            wait.until(EC.presence_of_element_located((By.ID, "searchVal")))
 
-            # 4) 각 RQ번호별 순회 작업
+            final_results = []
+
+            # 3) RQ번호별 데이터 수집
             for rq_no in rq_numbers:
-                # 검색창 입력
-                search_input = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "searchVal")))
-                search_input.clear()
-                search_input.send_keys(rq_no)
-                driver.find_element(By.XPATH, "//button[contains(@onclick, 'go_search')]").click()
-                time.sleep(2)
-
-                # 상세 링크 클릭
-                driver.find_element(By.CLASS_NAME, "goSelectLink").click()
-                time.sleep(3) # 상세 페이지 로딩 대기시간 상향
-
                 try:
-                # 1~4번 항목 (기존과 동일하지만 명칭 확인)
+                    # 검색창 로딩 대기
+                    search_input = wait.until(EC.element_to_be_clickable((By.ID, "searchVal")))
+                    search_input.clear()
+                    search_input.send_keys(rq_no)
+                    
+                    # 조회 버튼 클릭
+                    driver.find_element(By.XPATH, "//button[contains(@onclick, 'go_search')]").click()
+                    time.sleep(1.5) # 검색 결과 갱신 대기
+
+                    # 상세 링크 클릭
+                    detail_link = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "goSelectLink")))
+                    detail_link.click()
+                    
+                    # 상세 페이지 로딩 대기
+                    wait.until(EC.presence_of_element_located((By.XPATH, "//th[contains(text(), '접수번호')]")))
+
+                    # 데이터 추출
                     rcpt_no = driver.find_element(By.XPATH, "//th[contains(text(), '접수번호')]/following-sibling::td").text.strip()
+                    rcpt_date = driver.find_element(By.XPATH, "//th[contains(text(), '접수일시')]/following-sibling::td").text.strip()
                     status = driver.find_element(By.XPATH, "//th[contains(text(), '최종진행상태')]/following-sibling::td").text.strip()
-                    agency = driver.find_element(By.XPATH, "//th[contains(text(), '의뢰기관')]/following-sibling::td").text.strip()
-                    rcpt_date = driver.find_element(By.XPATH, "//th[contains(text(), '접수일시')]/following-sibling::td").text.strip() #
-
-                    # 5. 봉인자 성명 추출
-                    # '봉인자' 제목 칸의 부모(tr) 다음 줄(tr)에서 마지막 칸(td)인 '성명'을 가져옵니다.
-                    # 5. 봉인자 성명 (필요 없는 글자 제거)
-                    seal_user = driver.find_element(By.XPATH, "//th[text()='봉인자']/parent::tr/following-sibling::tr[1]/td[last()]").text.replace('성명', '').replace('(서명 완료)', '').strip()
-
-                    # 6. 채취자 성명 (필요 없는 글자 제거)
-                    pick_user = driver.find_element(By.XPATH, "//th[text()='채취자']/parent::tr/following-sibling::tr[1]/td[last()]").text.replace('성명', '').replace('(서명 완료)', '').strip()
-
-                    # 7. 공사명 (하단 공사개요 테이블)
                     biz_nm = driver.find_element(By.XPATH, "//th[text()='공사명']/following-sibling::td").text.strip()
+                    agency = driver.find_element(By.XPATH, "//th[contains(text(), '의뢰기관')]/following-sibling::td").text.strip()
+                    
+                    # 채취자 및 봉인명 추출 (에러 방지용 try-except)
+                    try:
+                        pick_user = driver.find_element(By.XPATH, "//th[text()='채취자']/parent::tr/following-sibling::tr[1]/td[last()]").text
+                        pick_user = pick_user.replace('성명', '').replace('(서명 완료)', '').strip()
+                    except: pick_user = ""
 
-                        # --- [데이터 확인용 출력 코드] ---
-                    print("\n" + "="*50)
-                    print(f"RQ번호: {rq_no}")
-                    print(f"접수번호: {rcpt_no}")
-                    print(f"상태: {status}")
-                    print(f"의뢰기관: {agency}")
-                    print(f"공사명: {biz_nm}")
-                    print(f"봉인자: {seal_user}")
-                    print(f"채취자: {pick_user}")
-                    print(f"접수일시: {rcpt_date}")                     
-                    print("="*50 + "\n")
-                            # ------------------------------
+                    try:
+                        # [중요] 괄호 오타 수정됨
+                        seal_name = driver.find_element(By.XPATH, "//th[contains(text(), '봉인명')]/following-sibling::td").text.strip()
+                    except: seal_name = ""
 
-                    # [수정] DB 저장을 지우고 데이터를 딕셔너리에 담아 보냅니다.
-                    result_data = {
-                    'receipt_no': rcpt_no,
-                    'status': status,
-                    'agency': agency,
-                    'rcpt_date': rcpt_date,
-                    'seal_user': seal_user,
-                    'pick_user': pick_user,
-                    'biz_nm': biz_nm
-                    }
+                    # 프론트엔드 순서에 맞춘 배열 생성
+                    final_results.append([
+                        rcpt_no, rcpt_date, status, biz_nm, agency, pick_user, seal_name
+                    ])
 
                 except Exception as e:
-                    print(f"데이터 추출 중 오류 ({rq_no}): {e}")
+                    print(f"항목 수집 실패 ({rq_no}): {e}")
+                    # 실패 시 목록으로 돌아가서 다음 번호 시도
+                    driver.get("https://gcloud.csi.go.kr/cmq/qtr/qltRqst/rqstRcvList.do")
                     continue
 
-                driver.back() # 다시 목록으로 이동
-                time.sleep(2)
+                # 하나 완료 후 목록으로 복귀
+                driver.back()
+                time.sleep(1)
 
             driver.quit()
-            return JsonResponse({'status': 'success', 'message': f'{len(rq_numbers)}건 업데이트 완료!'})
+            return JsonResponse({'status': 'success', 'results': final_results, 'message': '데이터 수집 완료!'})
 
         except Exception as e:
             if driver: driver.quit()
-            return JsonResponse({'status': 'error', 'message': str(e)})
+            return JsonResponse({'status': 'error', 'message': f"접속 중 오류: {str(e)}"})
 
     return JsonResponse({'status': 'error', 'message': '잘못된 접근입니다.'})
 
