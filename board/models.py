@@ -16,6 +16,7 @@ class OuterreceiptNew(models.Model):
     client_name = models.CharField(max_length=100, blank=True, null=True)    # 의뢰기관
     picker_name = models.CharField(max_length=50, blank=True, null=True)     # 채취자 성명
     seal_name = models.TextField(blank=True, null=True)     # 봉인명
+    specific_user = models.CharField(max_length=50, blank=True, null=True)     # 처리자
     # seal_name = models.CharField(max_length=50, blank=True, null=True)       # 봉인자 성명
     
     

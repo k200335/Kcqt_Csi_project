@@ -24,7 +24,7 @@
     .table {
         table-layout: fixed;
         width: 100%;
-        min-width: 2000px;
+        min-width: 2200px; /* 열 추가로 인한 너비 확장 */
         border-collapse: separate;
         border-spacing: 0;
     }
@@ -39,24 +39,49 @@
         padding: 10px 5px;
     }
 
+    /* 헤더 텍스트 가운데 정렬 */
+.table thead th {
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* 배정일자 헤더 내부 요소 정렬 */
+.header-date-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px; /* 글자와 달력 사이 간격 */
+}
+
+/* 헤더 달력 아이콘 스타일 커스텀 */
+#batch-date-picker {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
     /* 열 너비 설정 */
     .col-chk { width: 40px; }
-    .col-num { width: 60px; }
-    .col-rq  { width: 160px; }
-    .col-recv { width: 130px; }
-    .col-date { width: 150px; }
-    .col-stat { width: 130px; }
-    .col-proj { width: 350px; }
-    .col-org  { width: 220px; }
-    .col-user { width: 100px; }
+    .col-num { width: 50px; }
+    .col-rq  { width: 120px; }    /* 의뢰번호 열 */
+    .col-recv { width: 120px; }
+    .col-date { width: 80px; }   /* 접수일시 열 */
+    .col-stat { width: 120px; }
+    .col-proj { width: 320px; }
+    .col-org  { width: 180px; }   /* 의뢰기관명 열 */
+    .col-user { width: 60px; }
     .col-seal { width: 130px; }
-    .col-sale { width: 110px; }
-    .col-mgr  { width: 110px; }
-    .col-ok   { width: 110px; }
-    .col-vol  { width: 160px; }
+    .col-proc { width: 60px; background-color: #e7f3ff; } /* 처리자 열 강조 */
+    .col-sale { width: 80px; }
+    .col-mgr  { width: 70px; }  /* 담당자 열 */
+    .col-ok   { width: 50px; }
+    .col-vol  { width: 150px; }
     .col-type { width: 190px; }
-    .col-site { width: 230px; }
-    .col-assign-d { width: 130px; }
+    .col-site { width: 200px; }
+    .col-assign-d { width: 120px; }  /* 배정일자 열 */
     .col-assign-s { width: 110px; }
 
     .edit-input { 
@@ -86,6 +111,9 @@
         <button type="button" class="btn btn-lg btn-warning fw-bold px-4" onclick="window.fetchCsiData(event)">
             <i class="bi bi-cloud-download-fill me-2"></i> CSI 불러오기
         </button>
+        <button type="button" class="btn btn-lg btn-warning fw-bold px-4" onclick="window.fetchCsiData(event)">
+            <i class="bi bi-cloud-download-fill me-2"></i> 담당자 배정현황 불러오기
+        </button>
         <button type="button" class="btn btn-lg text-white fw-bold px-4" onclick="window.handleSaveToDB(event)">
             <i class="bi bi-database-fill-check me-2"></i> DB 저장하기
         </button>
@@ -109,13 +137,21 @@
                         <th class="col-org">의뢰기관명</th>
                         <th class="col-user">채취자</th>
                         <th class="col-seal">봉인명</th>
-                        <th class="col-sale">영업구분</th>
+                        <th class="col-proc">처리자</th> <th class="col-sale">영업구분</th>
                         <th class="col-mgr">담당자</th>
                         <th class="col-ok">확인</th>
                         <th class="col-vol">시료량</th>
                         <th class="col-type">구분</th>
                         <th class="col-site">현장 담당자</th>
-                        <th class="col-assign-d">배정일자</th>
+                        <th class="col-assign-d">
+                        <div class="header-date-container">
+                            <span>배정일자</span>
+                            <input type="date" id="batch-date-picker" onchange="applyBatchDate(this.value)">
+                        </div>
+                        </th>
+                        <input type="date" id="batch-date-picker" class="form-control form-control-sm" 
+                            style="font-size: 0.7rem; padding: 2px;" onchange="applyBatchDate(this.value)">
+                        </th>
                         <th class="col-assign-s">배정현황</th>
                     </tr>
                 </thead>
@@ -126,7 +162,6 @@
 </div>
 
 <script>
-    // 전역 변수 설정 (ID 일치시킴)
     const overlay = document.getElementById('loading-overlay');
     const loadingText = document.getElementById('loading-text');
     const progressBar = document.getElementById('progress-bar');
@@ -135,7 +170,7 @@
         document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = masterCheckbox.checked);
     }
 
-    // 1. 엑셀 가져오기
+    // 1. 엑셀 가져오기 (구조 유지)
     window.handleExcelImport = function(event) {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
@@ -173,22 +208,25 @@
                             <td><input type="checkbox" class="form-check-input row-checkbox"></td>
                             <td><input type="text" class="edit-input" value="${dataCount}"></td>
                             <td><input type="text" class="edit-input" value="${map.rq}"></td>
-                            <td><input type="text" class="edit-input" value=""></td>
-                            <td><input type="text" class="edit-input" value=""></td>
-                            <td><input type="text" class="edit-input" value="${map.status}"></td>
-                            <td><input type="text" class="edit-input" value="${map.project}"></td>
-                            <td><input type="text" class="edit-input" value="${map.client}"></td>
-                            <td><input type="text" class="edit-input" value=""></td>
-                            <td><input type="text" class="edit-input" value=""></td>
-                            <td><input type="text" class="edit-input" value="${map.sales}"></td>
-                            <td><input type="text" class="edit-input" value=""></td>
-                            <td><input type="text" class="edit-input" value="${map.check}"></td>
-                            <td><input type="text" class="edit-input" value="${map.amount}"></td>
-                            <td><input type="text" class="edit-input" value="${map.type}"></td>
-                            <td><input type="text" class="edit-input" value="${map.manager}"></td>
-                            <td><input type="text" class="edit-input" value=""></td>
-                            <td><input type="text" class="edit-input" value=""></td>
-                        `;
+                            <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value="${map.status}"></td>
+                            <td><input type="text" class="edit-input" value="${map.project}"></td> <td><input type="text" class="edit-input" value="${map.client}"></td> <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value="${map.sales}"></td> <td>
+                                <select class="edit-input team-select" onchange="changeTeamColor(this)">
+                                    <option value="">선택</option>
+                                    <option value="1팀" style="background-color: #ffff00;">1팀</option>
+                                    <option value="2팀" style="background-color: #ffcc99;">2팀</option>
+                                    <option value="3팀" style="background-color: #33ccff;">3팀</option>
+                                    <option value="4팀" style="background-color: #99ff99;">4팀</option>
+                                    <option value="5팀" style="background-color: #c0c0c0;">5팀</option>
+                                    <option value="6팀" style="background-color: #ffeb9c;">6팀</option>
+                                </select>
+                            </td>
+
+                            <td><input type="text" class="edit-input" value="${map.check}"></td> <td><input type="text" class="edit-input" value="${map.amount}"></td> <td><input type="text" class="edit-input" value="${map.type}"></td> <td><input type="text" class="edit-input" value="${map.manager}"></td> <td>
+                                <input type="date" class="edit-input date-picker" 
+                                    onchange="this.style.backgroundColor='#99ff99'">
+                            </td>
+
+                            <td><input type="text" class="edit-input" value=""></td> `;
                         tbody.appendChild(tr);
                     });
                     overlay.style.display = 'none';
@@ -202,7 +240,7 @@
         fileInput.click();
     };
 
-    // 2. CSI 불러오기 (수정 완료)
+    // 2. CSI 불러오기 (처리자 인덱스 수정 완료)
     window.fetchCsiData = function(event) {
         const selected = document.querySelectorAll('.row-checkbox:checked');
         if (selected.length === 0) return alert("대상을 선택해주세요.");
@@ -239,12 +277,15 @@
             if (data.status === 'success') {
                 data.results.forEach((resData, idx) => {
                     const inputs = targetRows[idx].querySelectorAll('.edit-input');
-                    // 백엔드 순서: [접수번호, 접수일시, 상태, 사업명, 의뢰기관, 채취자, 봉인명]
-                    // 표의 위치: 인덱스 3(접수번호)부터 하나씩 채움
+                    
+                    // 백엔드 데이터(resData) 순서: [접수번호, 접수일시, 상태, 사업명, 의뢰기관, 채취자, 봉인명, 특정처리자]
+                    // 표의 입력칸(inputs) 인덱스 매핑:
+                    // inputs[3]: 접수번호, inputs[4]: 접수일시, inputs[5]: 진행상태, inputs[6]: 사업명,
+                    // inputs[7]: 의뢰기관명, inputs[8]: 채취자, inputs[9]: 봉인명, inputs[10]: 처리자
+                    
                     for(let i=0; i < resData.length; i++) {
-                        if(resData[i] !== undefined) {
-                            // resData[0] -> inputs[3], resData[1] -> inputs[4]...
-                            inputs[i+1].value = resData[i];
+                        if(resData[i] !== undefined && inputs[i+2]) {
+                            inputs[i+2].value = resData[i];
                         }
                     }
                 });
@@ -263,5 +304,33 @@
             alert("실패 사유: " + err.message);
         });
     };
+
+    // 1. 담당자 선택 시 배경색 변경 (사진 image_3d5729.png 기준)
+        function changeTeamColor(selectElement) {
+            const colors = {
+                "1팀": "#ffff00", // 노랑
+                "2팀": "#ffcc99", // 살구
+                "3팀": "#33ccff", // 하늘
+                "4팀": "#99ff99", // 연두
+                "5팀": "#c0c0c0", // 회색
+                "6팀": "#ffeb9c"  // 연주황
+            };
+            const selectedValue = selectElement.value;
+            selectElement.style.backgroundColor = colors[selectedValue] || "transparent";
+            // 글자색도 진하게
+            selectElement.style.fontWeight = selectedValue ? "bold" : "normal";
+        }
+
+        // 2. 배정일자 헤더 선택 시 전체 행 일괄 적용
+        function applyBatchDate(dateValue) {
+            if (!dateValue) return;
+            
+            // 테이블 내의 모든 배정일자 input(date-picker 클래스)을 찾아서 값 변경
+            const dateInputs = document.querySelectorAll('.date-picker');
+            dateInputs.forEach(input => {
+                input.value = dateValue;
+                input.style.backgroundColor = '#99ff99'; // 일괄 변경 시 초록색 배경 (사진 강조색)
+            });
+        }
 </script>
 {% endblock %}

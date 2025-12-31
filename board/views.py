@@ -122,11 +122,26 @@ def fetch_csi_data(request):
                         # [중요] 괄호 오타 수정됨
                         seal_name = driver.find_element(By.XPATH, "//th[contains(text(), '봉인명')]/following-sibling::td").text.strip()
                     except: seal_name = ""
+                    
+                    # 3. [어제 성공한 코드] 특정처리자 추출 (BeautifulSoup 활용)
+                    from bs4 import BeautifulSoup
+                    html = driver.page_source
+                    soup = BeautifulSoup(html, 'html.parser')
 
-                    # 프론트엔드 순서에 맞춘 배열 생성
-                    final_results.append([
-                        rcpt_no, rcpt_date, status, biz_nm, agency, pick_user, seal_name
-                    ])
+                    specific_user = "" # 특정처리자 초기값
+                    hist_section = soup.find(id="rqst_hist_div")
+                    if hist_section:
+                        rows = hist_section.select("tbody tr")
+                        for r in rows:
+                            cols = r.find_all("td")
+                            # 2번째 열에 기관명, 3번째 열에 이름이 있는 구조
+                            if len(cols) >= 3 and "한국건설품질시험원" in cols[1].get_text():
+                                specific_user = cols[2].get_text(strip=True)
+
+                    # 4. 최종 리스트 구성 (순서가 매우 중요함!)
+                    # 인덱스: 0:접수번호, 1:접수일시, 2:상태, 3:사업명, 4:의뢰기관, 5:채취자, 6:봉인명, 7:특정처리자
+                    result_row = [rcpt_no, rcpt_date, status, biz_nm, agency, pick_user, seal_name, specific_user]
+                    final_results.append(result_row)
 
                 except Exception as e:
                     print(f"항목 수집 실패 ({rq_no}): {e}")
