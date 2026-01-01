@@ -5,10 +5,11 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.views.generic import TemplateView
-from board.views import receipt_list
-from board import views
 
-# 1. 회원가입 로직
+# board 앱의 views를 정확하게 가져옵니다.
+from board import views 
+
+# 1. 회원가입 로직 (별도 파일로 분리하지 않았다면 여기에 유지)
 def signup(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
@@ -21,7 +22,7 @@ def signup(request):
         form = UserCreationForm()
     return render(request, 'signup.html', {'form': form})
 
-# 2. CSI 접수 팝업창 로직 (is_popup 변수 전달)
+# 2. CSI 접수 팝업창 로직
 def csi_receipt_view(request):
     return render(request, 'csi_receipt.html', {'is_popup': True})
 
@@ -36,11 +37,22 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(next_page='/'), name='logout'), 
     path('signup/', signup, name='signup'),
 
-    # 게시판 및 접수 현황
-    # path('board/', receipt_list, name='board'),
+    # --- 게시판 기능 (board 앱의 views 연결) ---
+    # 메인 게시판 리스트
+    path('board/', views.receipt_list, name='receipt_list'),
 
-    # [핵심 수정] CSI_접수 팝업 경로 추가 (404 에러 해결)
+    # CSI_접수 팝업 경로
     path('board/csi_receipt/', csi_receipt_view, name='csi_receipt'),
 
+    # CSI 데이터 크롤링 (fetch_csi_data)
     path('fetch-csi/', views.fetch_csi_data, name='fetch_csi_data'),
+    
+    # 담당자 배정현황 불러오기 (MySQL 조회)
+    path('fetch-assignment-history/', views.fetch_assignment_history, name='fetch_assignment_history'),
+    path('save-to-csi/', views.save_to_csi_receipts, name='save_to_csi_receipts'),
+    path('search-by-date/', views.search_by_assign_date, name='search_by_assign_date'),
+    path('board/csi_issue/', views.csi_issue_view, name='csi_issue'),
+    path('board/fetch-csi-issue/', views.fetch_csi_issue_data, name='fetch_csi_issue_data'),
+    path('fetch-csi-data/', views.fetch_csi_issue_data, name='fetch_csi_issue_data'),
+    path('save-csi-matching/', views.save_csi_matching_data, name='save_csi_matching_data'),
 ]

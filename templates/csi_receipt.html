@@ -66,19 +66,19 @@
     /* 열 너비 설정 */
     .col-chk { width: 40px; }
     .col-num { width: 50px; }
-    .col-rq  { width: 120px; }    /* 의뢰번호 열 */
-    .col-recv { width: 120px; }
-    .col-date { width: 80px; }   /* 접수일시 열 */
-    .col-stat { width: 120px; }
-    .col-proj { width: 320px; }
+    .col-rq  { width: 140px; }    /* 의뢰번호 열 */
+    .col-recv { width: 140px; }
+    .col-date { width: 100px; }   /* 접수일시 열 */
+    .col-stat { width: 140px; }
+    .col-proj { width: 340px; }
     .col-org  { width: 180px; }   /* 의뢰기관명 열 */
     .col-user { width: 60px; }
-    .col-seal { width: 130px; }
+    .col-seal { width: 180px; }
     .col-proc { width: 60px; background-color: #e7f3ff; } /* 처리자 열 강조 */
     .col-sale { width: 80px; }
     .col-mgr  { width: 70px; }  /* 담당자 열 */
     .col-ok   { width: 50px; }
-    .col-vol  { width: 150px; }
+    .col-vol  { width: 190px; }
     .col-type { width: 190px; }
     .col-site { width: 200px; }
     .col-assign-d { width: 120px; }  /* 배정일자 열 */
@@ -105,14 +105,17 @@
 
 <nav class="main-menu-bar shadow-sm" style="background-color: #0089a7 !important;">
     <div class="container d-flex justify-content-center gap-4 py-2">
+        <a href="/" class="btn btn-lg text-white fw-bold px-4" style="background-color: #005f73; border: 1px solid rgba(255,255,255,0.2);">
+            <i class="bi bi-house-door-fill me-2"></i>홈으로
+        </a>
         <button type="button" class="btn btn-lg text-white fw-bold px-4" onclick="window.handleExcelImport(event)">
             <i class="bi bi-file-earmark-excel me-2"></i> 엑셀 가져오기
         </button>
         <button type="button" class="btn btn-lg btn-warning fw-bold px-4" onclick="window.fetchCsiData(event)">
             <i class="bi bi-cloud-download-fill me-2"></i> CSI 불러오기
-        </button>
-        <button type="button" class="btn btn-lg btn-warning fw-bold px-4" onclick="window.fetchCsiData(event)">
-            <i class="bi bi-cloud-download-fill me-2"></i> 담당자 배정현황 불러오기
+        </button>               
+        <button type="button" class="btn btn-lg text-white fw-bold px-4" style="background-color: #005f73;" onclick="window.fetchAssignmentHistory(event)">
+            <i class="bi bi-person-check-fill me-2"></i> 담당자 배정현황 불러오기
         </button>
         <button type="button" class="btn btn-lg text-white fw-bold px-4" onclick="window.handleSaveToDB(event)">
             <i class="bi bi-database-fill-check me-2"></i> DB 저장하기
@@ -122,7 +125,50 @@
 
 <div class="receipt-board-page container-fluid py-4">
     <div class="content-body-section bg-white p-4 rounded shadow-sm">
-        <h4 class="fw-bold text-primary mb-4"><i class="bi bi-pencil-square me-2"></i>의뢰서 통합 관리</h4>
+        
+        <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+            <h4 class="fw-bold text-primary m-0">
+                <i class="bi bi-pencil-square me-2"></i>의뢰서 통합 관리
+            </h4>
+            
+            <div class="d-flex flex-wrap align-items-center gap-2 bg-light p-2 rounded border">
+    <span class="fw-bold small text-secondary"><i class="bi bi-person-badge me-1"></i>담당자:</span>
+    <select id="search-manager" class="form-select form-select-sm" style="width: 90px;">
+        <option value="전체">전체</option>
+        <option value="1팀">1팀</option>
+        <option value="2팀">2팀</option>
+        <option value="3팀">3팀</option>
+        <option value="4팀">4팀</option>
+        <option value="5팀">5팀</option>
+        <option value="6팀">6팀</option>
+    </select>
+
+    <div class="input-group input-group-sm" style="width: 280px;">
+        <select id="search-filter" class="form-select" style="max-width: 100px;">
+            <option value="all">검색필터</option>
+            <option value="u_id">의뢰번호</option>
+            <option value="project">사업명</option>
+            <option value="client">의뢰기관</option>
+        </select>
+        <input type="text" id="search-keyword" class="form-control" placeholder="검색어 입력...">
+    </div>
+
+    <span class="fw-bold small text-secondary ms-2"><i class="bi bi-calendar-check me-1"></i>배정일:</span>
+    <input type="date" id="search-start-date" class="form-control form-control-sm" style="width: 135px;">
+    <span class="text-muted">~</span>
+    <input type="date" id="search-end-date" class="form-control form-control-sm" style="width: 135px;">
+    
+    <button class="btn btn-primary btn-sm fw-bold px-3" onclick="searchByDate()">
+        <i class="bi bi-search me-1"></i> 검색
+    </button>
+
+    <div class="vr mx-1"></div>
+
+    <button class="btn btn-success btn-sm fw-bold px-3" onclick="downloadExcel()">
+        <i class="bi bi-file-earmark-excel me-1"></i> 엑셀 다운로드
+    </button>
+</div>
+        </div>
         <div class="table-responsive">
             <table class="table table-sm table-bordered table-hover align-middle">
                 <thead>
@@ -137,20 +183,18 @@
                         <th class="col-org">의뢰기관명</th>
                         <th class="col-user">채취자</th>
                         <th class="col-seal">봉인명</th>
-                        <th class="col-proc">처리자</th> <th class="col-sale">영업구분</th>
+                        <th class="col-proc">처리자</th> 
+                        <th class="col-sale">영업구분</th>
                         <th class="col-mgr">담당자</th>
                         <th class="col-ok">확인</th>
                         <th class="col-vol">시료량</th>
                         <th class="col-type">구분</th>
                         <th class="col-site">현장 담당자</th>
                         <th class="col-assign-d">
-                        <div class="header-date-container">
-                            <span>배정일자</span>
-                            <input type="date" id="batch-date-picker" onchange="applyBatchDate(this.value)">
-                        </div>
-                        </th>
-                        <input type="date" id="batch-date-picker" class="form-control form-control-sm" 
-                            style="font-size: 0.7rem; padding: 2px;" onchange="applyBatchDate(this.value)">
+                            <div class="header-date-container">
+                                <span>배정일자</span>
+                                <input type="date" id="batch-date-picker" onchange="applyBatchDate(this.value)">
+                            </div>
                         </th>
                         <th class="col-assign-s">배정현황</th>
                     </tr>
@@ -206,27 +250,43 @@
 
                         tr.innerHTML = `
                             <td><input type="checkbox" class="form-check-input row-checkbox"></td>
-                            <td><input type="text" class="edit-input" value="${dataCount}"></td>
-                            <td><input type="text" class="edit-input" value="${map.rq}"></td>
-                            <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value="${map.status}"></td>
-                            <td><input type="text" class="edit-input" value="${map.project}"></td> <td><input type="text" class="edit-input" value="${map.client}"></td> <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value=""></td> <td><input type="text" class="edit-input" value="${map.sales}"></td> <td>
-                                <select class="edit-input team-select" onchange="changeTeamColor(this)">
-                                    <option value="">선택</option>
-                                    <option value="1팀" style="background-color: #ffff00;">1팀</option>
-                                    <option value="2팀" style="background-color: #ffcc99;">2팀</option>
-                                    <option value="3팀" style="background-color: #33ccff;">3팀</option>
-                                    <option value="4팀" style="background-color: #99ff99;">4팀</option>
-                                    <option value="5팀" style="background-color: #c0c0c0;">5팀</option>
-                                    <option value="6팀" style="background-color: #ffeb9c;">6팀</option>
-                                </select>
-                            </td>
+    <td><input type="text" class="edit-input" data-name="index" value="${dataCount}"></td>
+    <td><input type="text" class="edit-input" data-name="u_id" value="${map.rq}"></td>
+    
+    <td><input type="text" class="edit-input" data-name="receipt_id" value=""></td> 
+    <td><input type="text" class="edit-input" data-name="receipt_date" value=""></td> 
+    <td><input type="text" class="edit-input" data-name="status" value="${map.status}"></td>
+    
+    <td><input type="text" class="edit-input" data-name="project" value="${map.project}"></td> 
+    <td><input type="text" class="edit-input" data-name="client" value="${map.client}"></td> 
+    
+    <td><input type="text" class="edit-input" data-name="sampler" value=""></td> 
+    <td><input type="text" class="edit-input" data-name="seal" value=""></td> 
+    <td><input type="text" class="edit-input" data-name="processor" value=""></td> 
+    <td><input type="text" class="edit-input" data-name="sales_type" value="${map.sales}"></td> 
+    
+    <td>
+        <select class="edit-input team-select" data-name="manager" onchange="changeTeamColor(this)">
+            <option value="">선택</option>
+            <option value="1팀">1팀</option>
+            <option value="2팀">2팀</option>
+            <option value="3팀">3팀</option>
+            <option value="4팀">4팀</option>
+            <option value="5팀">5팀</option>
+            <option value="6팀">6팀</option>
+        </select>
+    </td>
 
-                            <td><input type="text" class="edit-input" value="${map.check}"></td> <td><input type="text" class="edit-input" value="${map.amount}"></td> <td><input type="text" class="edit-input" value="${map.type}"></td> <td><input type="text" class="edit-input" value="${map.manager}"></td> <td>
-                                <input type="date" class="edit-input date-picker" 
-                                    onchange="this.style.backgroundColor='#99ff99'">
-                            </td>
+    <td><input type="text" class="edit-input" data-name="check_col" value="${map.check}"></td> 
+    <td><input type="text" class="edit-input" data-name="amount" value="${map.amount}"></td> 
+    <td><input type="text" class="edit-input" data-name="type_col" value="${map.type}"></td> 
+    <td><input type="text" class="edit-input" data-name="manager_name" value="${map.manager}"></td> 
+    <td>
+        <input type="date" class="edit-input date-picker" data-name="assign_date"
+               onchange="this.style.backgroundColor='#99ff99'">
+    </td>
 
-                            <td><input type="text" class="edit-input" value=""></td> `;
+    <td><input type="text" class="edit-input" data-name="assignment_history" value=""></td> `;
                         tbody.appendChild(tr);
                     });
                     overlay.style.display = 'none';
@@ -332,5 +392,352 @@
                 input.style.backgroundColor = '#99ff99'; // 일괄 변경 시 초록색 배경 (사진 강조색)
             });
         }
+
+// 3. 담당자 배정현황 불러오기 (MySQL 조회)
+   window.fetchAssignmentHistory = function(event) {
+    if (event) event.preventDefault();
+
+    const rows = document.querySelectorAll('#table-body tr');
+    const items = [];
+    const targetRows = [];
+
+    rows.forEach((row) => {
+        // 'data-name' 속성으로 정확한 값들을 추출
+        const projectInput = row.querySelector('[data-name="project"]');
+        const clientInput = row.querySelector('[data-name="client"]');
+        const uidInput = row.querySelector('[data-name="u_id"]'); // ⭐ 의뢰번호(u_id) 추가 수집
+        
+        const project = projectInput ? projectInput.value.trim() : "";
+        const client = clientInput ? clientInput.value.trim() : "";
+        const u_id = uidInput ? uidInput.value.trim() : "";
+
+        // 사업명과 기관명이 있을 때만 목록에 추가
+        if (project && client) {
+            // ⭐ 서버로 u_id를 함께 보내서 저장 여부를 확인합니다.
+            items.push({ project: project, client: client, u_id: u_id });
+            targetRows.push(row);
+        }
+    });
+
+    if (items.length === 0) return alert("조회할 사업명/기관명 데이터가 행에 없습니다.");
+
+    overlay.style.display = 'flex';
+    loadingText.innerText = `과거 이력 및 DB 저장 여부 확인 중...`; // 텍스트 변경
+    progressBar.style.width = '30%';
+
+    fetch("{% url 'fetch_assignment_history' %}", {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}' 
+        },
+        body: JSON.stringify({ items: items })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            data.results.forEach((res, idx) => {
+                const currentRow = targetRows[idx];
+                const rowInputs = currentRow.querySelectorAll('input.edit-input');
+                const checkbox = currentRow.querySelector('.row-checkbox');
+                
+                // 1. 배정현황(이력) 값을 넣습니다.
+                const lastIdx = rowInputs.length - 1;
+                if (rowInputs[lastIdx]) {
+                    rowInputs[lastIdx].value = res.history || "이력 없음";
+                    rowInputs[lastIdx].style.color = "blue";
+                    rowInputs[lastIdx].style.fontWeight = "bold";
+                }
+
+                // 2. ⭐ DB에 이미 저장된 데이터인 경우 시각적 변화 적용
+                if (res.is_saved) {
+                    currentRow.style.backgroundColor = '#f8f9fa'; // 연한 회색 배경
+                    currentRow.style.opacity = '0.7';            // 약간 투명하게
+                    
+                    if (checkbox) {
+                        checkbox.checked = false;        // 체크박스 해제
+                        checkbox.disabled = true;        // 중복 저장 방지를 위해 비활성화
+                    }
+
+                    // 선택사항: 저장된 데이터는 실수로 수정하지 못하도록 입력창 잠금
+                    currentRow.querySelectorAll('input, select').forEach(el => {
+                        // 배정현황 칸만 빼고 모두 읽기 전용 처리
+                        if (el.getAttribute('data-name') !== 'assignment_history') {
+                            el.readOnly = true;
+                            if(el.tagName === 'SELECT') el.style.pointerEvents = 'none';
+                        }
+                    });
+                }
+            });
+
+            progressBar.style.width = '100%';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                const savedCount = data.results.filter(r => r.is_saved).length;
+                alert(`${data.results.length}건 조회 완료!\n(이미 저장된 데이터 ${savedCount}건은 회색으로 표시됩니다.)`);
+            }, 300);
+        }
+    })
+    .catch(err => {
+        overlay.style.display = 'none';
+        alert("에러: " + err.message);
+    });
+}; 
+    
+
+// 4. DB 저장하기 (MySQL에 데이터 최종 기록)
+window.handleSaveToDB = function(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation(); // 이벤트 전파 방지 추가
+    }
+    
+    const selected = document.querySelectorAll('.row-checkbox:checked');
+    if (selected.length === 0) {
+        alert("저장할 항목을 선택해주세요.");
+        return;
+    }
+
+    if (!confirm(`선택한 ${selected.length}건의 데이터를 저장하시겠습니까?`)) {
+        return;
+    }
+
+    const saveData = [];
+    selected.forEach(cb => {
+        const row = cb.closest('tr');
+        if (!row) return;
+
+        const rowData = {
+            u_id: row.querySelector('[data-name="u_id"]')?.value || "",
+            receipt_id: row.querySelector('[data-name="receipt_id"]')?.value || "",
+            receipt_date: row.querySelector('[data-name="receipt_date"]')?.value || "",
+            status: row.querySelector('[data-name="status"]')?.value || "",
+            project: row.querySelector('[data-name="project"]')?.value || "",
+            client: row.querySelector('[data-name="client"]')?.value || "",
+            sampler: row.querySelector('[data-name="sampler"]')?.value || "",
+            seal: row.querySelector('[data-name="seal"]')?.value || "",
+            processor: row.querySelector('[data-name="processor"]')?.value || "",
+            sales_type: row.querySelector('[data-name="sales_type"]')?.value || "",
+            manager: row.querySelector('[data-name="manager"]')?.value || "", 
+            check_col: row.querySelector('[data-name="check_col"]')?.value || "",
+            amount: row.querySelector('[data-name="amount"]')?.value || "",
+            type_col: row.querySelector('[data-name="type_col"]')?.value || "",
+            manager_name: row.querySelector('[data-name="manager_name"]')?.value || "",
+            assign_date: row.querySelector('[data-name="assign_date"]')?.value || "",
+            assignment_history: row.querySelector('[data-name="assignment_history"]')?.value || ""
+        };
+        saveData.push(rowData);
+    });
+
+    // 로딩 표시
+    if (typeof overlay !== 'undefined') overlay.style.display = 'flex';
+    if (typeof loadingText !== 'undefined') loadingText.innerText = "데이터베이스에 저장 중입니다...";
+
+    fetch("{% url 'save_to_csi_receipts' %}", {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}' 
+        },
+        body: JSON.stringify({ data: saveData })
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("서버 응답 실패");
+        return res.json();
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message || "저장되었습니다.");
+            selected.forEach(cb => {
+                const row = cb.closest('tr');
+                row.style.backgroundColor = '#f8f9fa';
+                row.style.opacity = '0.6';
+                cb.checked = false;
+            });
+        } else {
+            alert("저장 실패: " + data.message);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert("오류 발생: " + err.message);
+    })
+    .finally(() => {
+        if (typeof overlay !== 'undefined') overlay.style.display = 'none';
+    });
+}; // <-- 함수는 여기서 딱 한 번만 닫혀야 합니다.    
+
+// 디비가져와서 창에 뿌려주는 코드임!
+window.searchByDate = function() {
+    const tbody = document.getElementById('table-body');
+    
+    // 1. 기존 데이터 확인
+    if (tbody && tbody.children.length > 0) {
+        if (!confirm("현재 표에 작업 중인 데이터가 있습니다. 무시하고 조회할까요?")) return;
+    }
+
+    // 2. 검색 조건 가져오기 (엘리먼트가 없어도 에러 안 나게 수정) ⭐
+    const managerEl = document.getElementById('search-manager');
+    const filterEl = document.getElementById('search-filter');
+    const keywordEl = document.getElementById('search-keyword');
+    const startEl = document.getElementById('search-start-date');
+    const endEl = document.getElementById('search-end-date');
+
+    // 필수 날짜값이 없으면 중단
+    if (!startEl.value || !endEl.value) return alert("검색할 시작일과 종료일을 선택해주세요.");
+
+    const manager = managerEl ? managerEl.value : '전체';
+    const filter = filterEl ? filterEl.value : 'all';
+    const keyword = keywordEl ? keywordEl.value : '';
+
+    overlay.style.display = 'flex';
+    loadingText.innerText = "데이터를 조회 중입니다...";
+
+    // 3. 서버로 전송
+    fetch("{% url 'search_by_assign_date' %}", {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}' 
+        },
+        body: JSON.stringify({ 
+            manager: manager,
+            filter: filter,
+            keyword: keyword,
+            start_date: startEl.value, 
+            end_date: endEl.value 
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log("서버 응답 데이터:", data); // 🔍 F12 콘솔에서 데이터 확인용
+
+        if (data.status === 'success') {
+            tbody.innerHTML = ''; 
+
+            if (!data.results || data.results.length === 0) {
+                alert(`검색 결과가 없습니다.`);
+                return;
+            }
+
+            // 4. 테이블 그리기
+            data.results.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'text-center';
+                
+                // 데이터 매핑 (row.u_id가 없으면 빈칸 처리)
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="form-check-input row-checkbox"></td>
+                    <td><input type="text" class="edit-input" data-name="index" value="${idx + 1}"></td>
+                    <td><input type="text" class="edit-input" data-name="u_id" value="${row.u_id || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="receipt_id" value="${row.receipt_id || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="receipt_date" value="${row.receipt_date || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="status" value="${row.status || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="project" value="${row.project || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="client" value="${row.client || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="sampler" value="${row.sampler || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="seal" value="${row.seal || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="processor" value="${row.processor || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="sales_type" value="${row.sales_type || ''}"></td>
+                    <td>
+                        <select class="edit-input team-select" data-name="manager" onchange="changeTeamColor(this)">
+                            <option value="">선택</option>
+                            <option value="1팀" ${row.manager === '1팀' ? 'selected' : ''}>1팀</option>
+                            <option value="2팀" ${row.manager === '2팀' ? 'selected' : ''}>2팀</option>
+                            <option value="3팀" ${row.manager === '3팀' ? 'selected' : ''}>3팀</option>
+                            <option value="4팀" ${row.manager === '4팀' ? 'selected' : ''}>4팀</option>
+                            <option value="5팀" ${row.manager === '5팀' ? 'selected' : ''}>5팀</option>
+                            <option value="6팀" ${row.manager === '6팀' ? 'selected' : ''}>6팀</option>
+                        </select>
+                    </td>
+                    <td><input type="text" class="edit-input" data-name="check_col" value="${row.check_col || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="amount" value="${row.amount || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="type_col" value="${row.type_col || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="manager_name" value="${row.manager_name || ''}"></td>
+                    <td><input type="date" class="edit-input date-picker" data-name="assign_date" value="${row.assign_date || ''}"></td>
+                    <td><input type="text" class="edit-input" data-name="assignment_history" value="${row.assignment_history || ''}"></td>
+                `;
+                tbody.appendChild(tr);
+
+                const select = tr.querySelector('.team-select');
+                if (select && select.value) changeTeamColor(select);
+            });
+            alert(`${data.results.length}건을 성공적으로 불러왔습니다.`);
+        } else {
+            alert("서버 오류: " + data.message);
+        }
+    })
+    .catch(err => alert("조회 에러: " + err.message))
+    .finally(() => overlay.style.display = 'none');
+};
+
+// 여기서 부터 엑셀다운로드 하기 코드입니다.
+window.downloadExcel = function() {
+    console.log("엑셀 다운로드 함수 시작"); // 실행 여부 확인용
+
+    try {
+        // XLSX 라이브러리 로드 확인
+        if (typeof XLSX === 'undefined') {
+            alert("엑셀 라이브러리가 로드되지 않았습니다. 페이지를 새로고침 해보세요.");
+            return;
+        }
+
+        const table = document.querySelector(".table");
+        if (!table) return alert("다운로드할 테이블이 없습니다.");
+
+        const ws_data = [];
+        
+        // 2. 헤더(thead) 추출
+        const headers = [];
+        const ths = table.querySelectorAll("thead th");
+        ths.forEach((th, idx) => {
+            if (idx === 0) return; // 체크박스 열 제외
+            // 텍스트만 깔끔하게 추출 (배정일자의 input 등 제외)
+            let headerText = th.innerText.split('\n')[0].replace('📅', '').trim();
+            headers.push(headerText);
+        });
+        ws_data.push(headers);
+
+        // 3. 본문(tbody) 데이터 추출
+        const rows = table.querySelectorAll("tbody tr");
+        if (rows.length === 0) return alert("다운로드할 데이터가 없습니다.");
+
+        rows.forEach(row => {
+            const rowData = [];
+            const tds = row.querySelectorAll("td");
+            
+            tds.forEach((td, idx) => {
+                if (idx === 0) return; // 체크박스 열 제외
+                
+                const input = td.querySelector("input, select");
+                if (input) {
+                    // input이나 select일 경우 현재 입력된 값을 가져옴
+                    rowData.push(input.value || "");
+                } else {
+                    rowData.push(td.innerText.trim());
+                }
+            });
+            ws_data.push(rowData);
+        });
+
+        // 4. 워크북 생성 및 파일 저장
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        
+        // 열 너비 설정
+        ws['!cols'] = headers.map(() => ({ wch: 15 }));
+
+        XLSX.utils.book_append_sheet(wb, ws, "의뢰서내역");
+        
+        const dateStr = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `의뢰서_내역_${dateStr}.xlsx`);
+        console.log("엑셀 다운로드 완료");
+
+    } catch (error) {
+        console.error("다운로드 에러 상세:", error);
+        alert("다운로드 중 오류가 발생했습니다: " + error.message);
+    }
+};
+
 </script>
 {% endblock %}
