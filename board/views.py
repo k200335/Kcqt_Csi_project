@@ -2,7 +2,7 @@ import json
 import time
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.db import connection
+from django.db import connection, connections
 from django.views.decorators.csrf import csrf_exempt
 # 셀레늄 및 크롤링 관련
 from selenium import webdriver
@@ -61,7 +61,7 @@ def fetch_csi_data(request):
 
         # 브라우저 설정
         chrome_options = Options()
-        chrome_options.add_argument("--headless") # 필요시 주석 처리 (창 보기)
+        # chrome_options.add_argument("--headless") # 필요시 주석 처리 (창 보기)
         chrome_options.add_argument("--no-sandbox")
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
         wait = WebDriverWait(driver, 10)
@@ -510,3 +510,154 @@ def save_csi_matching_data(request):
 
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
+        
+
+        # 여기서부터 QT 통합코드 작성
+
+
+
+
+
+
+# views.py에서 MSSQL만 테스트
+# @csrf_exempt
+# def fetch_combined_data(request):
+#     try:
+#         # 1. MySQL 데이터 가져오기
+#         mysql_query = "SELECT * FROM csi_receipts ORDER BY 접수일시 DESC LIMIT 50"
+#         with connections['default'].cursor() as mysql_cursor:
+#             mysql_cursor.execute(mysql_query)
+#             columns = [col[0] for col in mysql_cursor.description]
+#             mysql_rows = [dict(zip(columns, row)) for row in mysql_cursor.fetchall()]
+
+#         # 2. 의뢰번호 리스트 정제 (문자열로 변환하고 빈 값 제거)
+#         req_codes = [str(row['의뢰번호']).strip() for row in mysql_rows if row.get('의뢰번호')]
+        
+#         mssql_dict = {}
+#         # 3. MSSQL 조회 (데이터가 있을 때만 실행)
+#         if req_codes:
+#             with connections['mssql'].cursor() as mssql_cursor:
+#                 # %s나 ? 대신 f-string과 join을 사용하여 직접 리스트를 처리하는 대신
+#                 # 가장 안전한 파라미터 바인딩 방식을 사용합니다.
+#                 placeholders = ', '.join(['%s'] * len(req_codes))
+#                 # 주의: django-mssql-backend 종류에 따라 %s 대신 ?를 써야 할 수도 있습니다.
+#                 # 만약 아래에서 에러가 다시 나면 %s를 ?로만 바꿔주세요.
+#                 mssql_query = f"SELECT request_code, receipt_csi_code, receipt_code FROM dbo.Receipt WHERE request_code IN ({placeholders})"
+                
+#                 mssql_cursor.execute(mssql_query, req_codes)
+                
+#                 m_cols = [col[0] for col in mssql_cursor.description]
+#                 for m_row in mssql_cursor.fetchall():
+#                     m_item = dict(zip(m_cols, m_row))
+#                     mssql_dict[str(m_item['request_code']).strip()] = m_item
+
+#         # 4. 데이터 합치기
+#         final_results = []
+#         for row in mysql_rows:
+#             # MySQL의 의뢰번호와 MSSQL의 키값을 동일한 포맷(문자열+공백제거)으로 비교
+#             req_no = str(row.get('의뢰번호', '')).strip()
+#             ms_info = mssql_dict.get(req_no, {})
+            
+#             final_results.append({
+#                 "담당자": row.get('담당자', ''),
+#                 "영업구분": row.get('영업구분', ''),
+#                 "의뢰번호": req_no,
+#                 "접수일시": str(row.get('접수일시', '')),
+#                 "접수번호": ms_info.get('receipt_csi_code', '-'),
+#                 "QT번호": ms_info.get('receipt_code', '-'),
+#                 "의뢰기관명": row.get('의뢰기관명', ''),
+#                 "사업명": row.get('사업명', '')
+#             })
+
+#         return JsonResponse({'status': 'success', 'data': final_results})
+
+#     except Exception as e:
+#         # 에러 발생 시 로그를 위해 에러 타입도 함께 출력
+#         return JsonResponse({'status': 'error', 'message': f"Type: {type(e).__name__}, Msg: {str(e)}"})
+
+
+
+@csrf_exempt
+def fetch_combined_data(request):
+    try:
+        # 1. MySQL: 기본 데이터 및 성적서번호 가져오기
+        mysql_query = """
+            SELECT r.*, i.성적서번호 
+            FROM csi_receipts r 
+            LEFT JOIN csi_issue_results i ON r.의뢰번호 = i.의뢰번호 
+            ORDER BY r.접수일시 DESC LIMIT 100
+        """
+        with connections['default'].cursor() as mysql_cursor:
+            mysql_cursor.execute(mysql_query)
+            columns = [col[0] for col in mysql_cursor.description]
+            mysql_rows = [dict(zip(columns, row)) for row in mysql_cursor.fetchall()]
+
+        # 2. 의뢰번호 리스트 추출
+        req_codes = [str(row['의뢰번호']).strip() for row in mysql_rows if row.get('의뢰번호')]
+        
+        mssql_dict = {}
+        # 3. MSSQL: 6개 테이블 조인 쿼리
+        if req_codes:
+            with connections['mssql'].cursor() as mssql_cursor:
+                placeholders = ', '.join(['%s'] * len(req_codes))
+                
+                # 제공해주신 테이블 정보를 바탕으로 조인 쿼리 작성
+                mssql_query = f"""
+                    SELECT 
+                        a.request_code, 
+                        a.receipt_csi_code, 
+                        b.builder, b.construction, b.completion_day, b.save_date,
+                        c.specimen,
+                        d.receipt_code, d.supply_value,
+                        e.deposit, e.deposit_day,
+                        f.issue_date, f.company
+                    FROM dbo.Receipt a
+                    LEFT JOIN dbo.Customer b ON a.request_code = b.request_code
+                    LEFT JOIN dbo.Specimen_info c ON a.request_code = c.request_code
+                    LEFT JOIN dbo.Estimate d ON a.request_code = d.request_code
+                    LEFT JOIN dbo.Deposit e ON a.request_code = e.request_code
+                    LEFT JOIN dbo.Tax_Manager f ON a.request_code = f.request_code
+                    WHERE a.request_code IN ({placeholders})
+                """
+                mssql_cursor.execute(mssql_query, req_codes)
+                
+                m_cols = [col[0] for col in mssql_cursor.description]
+                for m_row in mssql_cursor.fetchall():
+                    m_item = dict(zip(m_cols, m_row))
+                    mssql_dict[str(m_item['request_code']).strip()] = m_item
+
+        # 4. 데이터 최종 합체
+        final_results = []
+        for row in mysql_rows:
+            req_no = str(row.get('의뢰번호', '')).strip()
+            ms_info = mssql_dict.get(req_no, {})
+            
+            final_results.append({
+                "담당자": row.get('담당자', ''),
+                "영업구분": row.get('영업구분', ''),
+                "의뢰번호": req_no,
+                "접수일시": str(row.get('접수일시', '')),
+                "접수번호": ms_info.get('receipt_csi_code', '-'), # AC번호
+                "QT번호": ms_info.get('receipt_code', '-'),      # QT번호
+                "성적서번호": row.get('성적서번호', '-'),
+                "의뢰기관명": row.get('의뢰기관명', ''),
+                "사업명": ms_info.get('construction', row.get('사업명', '')), # MSSQL 공사명 우선
+                "봉인명": ms_info.get('specimen', '-'),          # 시료명
+                "실접수일": str(ms_info.get('save_date', '-')),
+                "공급가액": ms_info.get('supply_value', 0),
+                "입금액": ms_info.get('deposit', 0),
+                "계산서발행일": str(ms_info.get('issue_date', '-'))
+            })
+
+        return JsonResponse({'status': 'success', 'data': final_results})
+
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f"Type: {type(e).__name__}, Msg: {str(e)}"})
+
+
+
+
+
+# 5. 페이지 호출 함수 (AttributeError 해결)
+def request_page(request):
+    return render(request, 'request.html')    

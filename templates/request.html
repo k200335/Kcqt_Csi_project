@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block content %}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/styles/ag-theme-balham.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.1/dist/ag-grid-enterprise.min.js"></script>
+
+<style>
+    #layout { display: flex; flex-direction: column; height: 92vh; overflow: hidden; }
+    .search-zone { height: 50px; background: #f8f9fa; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 15px; flex-shrink: 0; }
+    .grid-zone { flex: 1 1 auto; width: 100%; background: #fff; position: relative; }
+    #mainGrid { height: 100%; width: 100%; }
+    .detail-zone { height: 320px; flex-shrink: 0; border-top: 2px solid #444; background: #fff; }
+</style>
+
+<div id="layout">
+    <div class="search-zone gap-2">
+        <span class="fw-bold small">기간:</span>
+        <input type="date" id="startDate" class="form-control-sm" style="width:130px;">
+        <span>~</span>
+        <input type="date" id="endDate" class="form-control-sm" style="width:130px;">
+        <select id="searchType" class="form-control-sm ms-2" style="width:100px;">
+            <option value="req_code">의뢰번호</option>
+            <option value="client">의뢰기관명</option>
+            <option value="project">사업명</option>
+        </select>
+        <input type="text" id="searchText" class="form-control-sm" style="width:200px;" placeholder="검색어 입력">
+        <button onclick="onSearch()" class="btn btn-primary btn-sm px-3">조회</button>
+    </div>
+
+    <div class="grid-zone">
+        <div id="mainGrid" class="ag-theme-balham"></div>
+    </div>
+
+    <div class="detail-zone">
+        <div class="row h-100 g-0"><div class="col-3 border-end"></div><div class="col-6 border-end"></div><div class="col-3"></div></div>
+    </div>
+</div>
+
+<script>
+/**
+ * ★ 18개 헤더 순서 고정 및 '담당자~의뢰번호' 틀고정 ★
+ */
+const columnDefs = [
+    { field: "담당자", width: 100, pinned: 'left' },
+    { field: "영업구분", width: 90, pinned: 'left' },
+    { field: "의뢰번호", width: 120, pinned: 'left', cellClass: 'fw-bold' },
+    // 의뢰번호 바로 다음으로 접수일시 이동
+    { field: "접수일시", width: 150, pinned: 'left' }, 
+    { field: "접수번호", width: 110 },
+    { field: "QT번호", width: 110 },
+    { field: "성적서번호", width: 110 },
+    { field: "의뢰기관명", width: 150 },
+    { field: "사업명", width: 220 },
+    { field: "봉인명", width: 120 },
+    { field: "준공예정일", width: 100 },
+    { field: "실접수일", width: 100 },
+    { field: "공급가액", width: 110, type: 'numericColumn', valueFormatter: p => Number(p.value||0).toLocaleString() },
+    { field: "부가세", width: 100, type: 'numericColumn', valueFormatter: p => Number(p.value||0).toLocaleString() },
+    { field: "할인율", width: 80 },
+    { field: "입금일", width: 100 },
+    { field: "입금액", width: 110, type: 'numericColumn', valueFormatter: p => Number(p.value||0).toLocaleString() },
+    { field: "계산서발행일", width: 110 },
+    { field: "계산서발행회사명", width: 160 }
+];
+
+// 그리드 API를 담을 변수
+let gridApi;
+
+const gridOptions = {
+    columnDefs: columnDefs,
+    defaultColDef: { 
+        sortable: true, 
+        filter: true, 
+        resizable: true,
+        headerClass: 'text-center'
+    },
+    rowData: []
+};
+
+window.onload = function() {
+    // 날짜 자동 세팅
+    const d = new Date();
+    document.getElementById('endDate').value = d.toISOString().split('T')[0];
+    d.setMonth(d.getMonth() - 2);
+    document.getElementById('startDate').value = d.toISOString().split('T')[0];
+
+    const gridDiv = document.querySelector('#mainGrid');
+    if (typeof agGrid !== 'undefined') {
+        // 전역 변수 gridApi에 생성된 그리드를 할당합니다.
+        gridApi = agGrid.createGrid(gridDiv, gridOptions);
+    }
+};
+
+/**
+ * [조회 함수 완성] DB에서 데이터를 가져와 순서대로 배치합니다.
+ */
+function onSearch() {
+    const sDate = document.getElementById('startDate').value;
+    const eDate = document.getElementById('endDate').value;
+    const sType = document.getElementById('searchType').value;
+    const sText = document.getElementById('searchText').value;
+
+    console.log("조회 실행:", sDate, eDate, sType, sText);
+
+    // 1. URL 주소를 views.py 함수명과 일치시킴
+    const url = `/fetch_combined_data/?start=${sDate}&end=${eDate}&type=${sType}&text=${sText}`;
+
+    fetch(url)
+        .then(res => res.json()) // 여기서 이름을 'res'로 정의했으므로 아래에서도 'res'를 써야 합니다.
+        .then(res => {
+            console.log("서버 응답 데이터:", res);
+            
+            // 2. 서버 응답이 성공이고 실제 데이터(res.data)가 리스트인 경우에만 그리드에 입력
+            if (res.status === 'success' && Array.isArray(res.data)) {
+                gridApi.setGridOption('rowData', res.data);
+                console.log("데이터 로드 완료:", res.data.length, "건");
+            } else {
+                alert("데이터 로드 실패: " + (res.message || "알 수 없는 오류"));
+                gridApi.setGridOption('rowData', []);
+            }
+        })
+        .catch(err => {
+            console.error("데이터 로드 중 오류 발생:", err);
+            alert("조회 중 오류가 발생했습니다.");
+        });
+}
+</script>
+{% endblock %}

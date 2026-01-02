@@ -4,7 +4,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-(t_$e)djiv%k4(e8mc&^$!dlerw4$-f58@$qsaju2_i9rd@j4p'
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -58,7 +58,7 @@ DATABASES = {
         'HOST': '221.155.228.179',
         'PORT': '3306',
     },
-    'mssql_db': {  # Cafe24 MS SQL (데이터 조회용)
+    'mssql': {  # Cafe24 MS SQL (데이터 조회용)
         'ENGINE': 'mssql',
         'NAME': 'kcqt77',
         'USER': 'kcqt77',

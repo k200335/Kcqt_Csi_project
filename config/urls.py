@@ -55,4 +55,9 @@ urlpatterns = [
     path('board/fetch-csi-issue/', views.fetch_csi_issue_data, name='fetch_csi_issue_data'),
     path('fetch-csi-data/', views.fetch_csi_issue_data, name='fetch_csi_issue_data'),
     path('save-csi-matching/', views.save_csi_matching_data, name='save_csi_matching_data'),
+    # 1. 화면을 보여주는 URL (request.html 렌더링)
+    path('request/', views.request_page, name='request_page'),
+    
+    # 2. 데이터를 가져오는 API URL (AG-Grid가 호출하는 경로)
+    path('fetch_combined_data/', views.fetch_combined_data, name='fetch_combined_data'),
 ]
