@@ -12,56 +12,222 @@
     #mainGrid { height: 100%; width: 100%; }
     .detail-zone { height: 320px; flex-shrink: 0; border-top: 2px solid #444; background: #fff; }
 </style>
-
-<div id="layout">
-    <div class="search-zone gap-2">
+<div id="layout" class="p-2">
+    <div class="search-zone gap-2 d-flex align-items-center mb-1 bg-light p-2 border rounded">
         <span class="fw-bold small">기간:</span>
-        <input type="date" id="startDate" class="form-control-sm" style="width:130px;">
+        <input type="date" id="startDate" class="form-control form-control-sm" style="width:130px;">
         <span>~</span>
-        <input type="date" id="endDate" class="form-control-sm" style="width:130px;">
-        <select id="searchType" class="form-control-sm ms-2" style="width:100px;">
+        <input type="date" id="endDate" class="form-control form-control-sm" style="width:130px;">
+
+        <select id="teamSelect" class="form-control form-control-sm ms-2" style="width:90px;">
+            <option value="전체">전체</option>
+            <option value="1팀">1팀</option>
+            <option value="2팀">2팀</option>
+            <option value="3팀">3팀</option>
+            <option value="4팀">4팀</option>
+            <option value="5팀">5팀</option>
+            <option value="6팀">6팀</option>
+        </select>
+
+        <select id="searchType" class="form-control form-control-sm" style="width:100px;">
             <option value="req_code">의뢰번호</option>
             <option value="client">의뢰기관명</option>
             <option value="project">사업명</option>
         </select>
-        <input type="text" id="searchText" class="form-control-sm" style="width:200px;" placeholder="검색어 입력">
-        <button onclick="onSearch()" class="btn btn-primary btn-sm px-3">조회</button>
+        
+        <input type="text" id="searchText" class="form-control form-control-sm" style="width:200px;" placeholder="검색어 입력">
+        <button onclick="onSearch()" class="btn btn-primary btn-sm px-4">조회</button>
+
+        <div class="d-flex align-items-center ms-auto" style="gap: 20px;">
+            <div class="d-flex align-items-center fw-bold text-secondary" style="font-size: 0.9rem; gap: 15px;">
+            <div>공급가액 : <span id="top_total_supply" class="text-dark">0</span></div>
+            <div>부가세 : <span id="top_total_vat" class="text-dark">0</span></div>
+            <div>입금액 : <span id="top_total_deposit" class="text-dark text-primary">0</span></div>
+            </div>
+
+            <button type="button" class="btn btn-sm btn-outline-success d-flex align-items-center" onclick="downloadExcel()">
+                <i class="bi bi-file-earmark-excel me-1"></i> 엑셀 다운로드
+            </button>
+        </div>
     </div>
 
-    <div class="grid-zone">
-        <div id="mainGrid" class="ag-theme-balham"></div>
+    <!-- <div class="grid-zone mb-1">
+        <div id="mainGrid" class="ag-theme-balham" style="height: 350px; width: 100%;"></div>
+    </div> -->
+
+    <div class="grid-zone mb-1">
+        <div id="mainGrid" class="ag-theme-balham" style="width: 100%;"></div>
     </div>
 
-    <div class="detail-zone">
-        <div class="row h-100 g-0"><div class="col-3 border-end"></div><div class="col-6 border-end"></div><div class="col-3"></div></div>
-    </div>
+    <div class="row g-2 mt-0" style="height: 320px;">
+        <div class="col-6 d-flex flex-column h-100">
+            <div class="border rounded p-2 bg-white h-100 d-flex flex-column" style="overflow: hidden;">
+                <!-- <span class="fw-bold small mb-2"><i class="bi bi-table"></i> 영업 담당자별 집계 현황</span>
+                    -->
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
+                    <span class="fw-bold small">
+                        <i class="bi bi-table"></i> ▣ 영업 담당자별 집계 현황
+                    </span>
+                    <div id="totalSummary" class="small fw-bold">
+                        <span class="text-muted">전체:</span> [0]건 | 
+                        <span class="text-muted">집계:</span> [0]건 | 
+                        <span class="text-muted">집계총금액:</span> <span class="text-danger">0</span>원
+                    </div>
+                </div>
+                <div class="table-responsive" style="flex: 1; border: 1px solid #dee2e6; position: relative; overflow: auto;">
+                    <table class="table table-sm table-bordered small text-center align-middle mb-0" style="min-width: 1400px; border-collapse: separate; border-spacing: 0;">
+                        <thead class="table-light">
+                            <tr>
+                                <th rowspan="2" style="position: sticky; top: 0; left: 0; z-index: 20; width:80px; background: #f8f9fa; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6;">영업/담당</th>
+                                <th rowspan="2" style="position: sticky; top: 0; left: 80px; z-index: 20; width:80px; background: #f8f9fa; border-right: 2px solid #dee2e6; border-bottom: 1px solid #dee2e6;">구분</th>
+                                <th colspan="2" style="position: sticky; top: 0; z-index: 10; background-color: hsla(61, 100%, 50%, 0.958) !important;">1팀</th>
+                                <th colspan="2" style="position: sticky; top: 0; z-index: 10; background-color: #ee8dce !important;">2팀</th>
+                                <th colspan="2" style="position: sticky; top: 0; z-index: 10; background-color: #6f95e7 !important;">3팀</th>
+                                <th colspan="2" style="position: sticky; top: 0; z-index: 10; background-color: #12d626 !important;">4팀</th>
+                                <th colspan="2" style="position: sticky; top: 0; z-index: 10; background-color: #4c525d !important;">5팀</th>
+                                <th colspan="2" style="position: sticky; top: 0; z-index: 10; background-color: #f4b908 !important;">6팀</th>
+                            </tr>
+                            <tr>
+                                <th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">금액</th><th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">건수(발급)</th>
+                                <th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">금액</th><th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">건수(발급)</th>
+                                <th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">금액</th><th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">건수(발급)</th>
+                                <th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">금액</th><th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">건수(발급)</th>
+                                <th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">금액</th><th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">건수(발급)</th>
+                                <th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">금액</th><th style="position: sticky; top: 27px; z-index: 10; background: #f8f9fa;">건수(발급)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="statsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-3 h-100">
+            <!-- <div class="border rounded p-2 bg-light h-100 overflow-auto">
+                <span class="fw-bold small text-primary"><i class="bi bi-info-circle"></i> 견적 상세</span>
+                <hr class="my-1"> <div id="detailContent" class="small text-muted">항목을 선택하세요.</div>
+            </div> -->
+            <div class="border rounded p-2 bg-white h-100 d-flex flex-column" style="overflow: hidden;">
+            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                <h6 class="m-0 fw-bold text-primary"><i class="bi bi-file-earmark-text"></i> 견적 상세 내역</h6>
+                <span id="selectedQtDisplay" class="badge bg-secondary">QT번호: -</span>
+            </div>
+
+            <div id="estimateDetailArea" class="table-responsive flex-grow-1" style="overflow-y: auto;">
+                <table class="table table-sm table-hover table-bordered mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr class="text-center">
+                            <th style="width: 40px;">NO</th>
+                            <th>시험항목</th>
+                            <th style="width: 50px;">수량</th>
+                            <th style="width: 90px;">단가</th>
+                            <th style="width: 100px;">금액</th>
+                        </tr>
+                    </thead>
+                    <tbody id="estimateDetailBody">
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">상단 리스트의 행을 클릭하세요.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        </div>
+
+        <div class="col-3 h-100">
+            <!-- <div class="border rounded p-2 bg-light h-100 overflow-auto">
+                <span class="fw-bold small text-secondary"><i class="bi bi-pencil-square"></i> 기타 참고</span>
+                <hr class="my-1"> </div>
+            </div> -->
+            <div class="border rounded p-2 bg-white h-100 d-flex flex-column" style="overflow: hidden;">
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
+                    <h6 class="m-0 fw-bold text-success"><i class="bi bi-calculator"></i> 공급금액 상세 요약</h6>
+                </div>
+
+                <div class="flex-grow-1 overflow-auto">
+                    <table class="table table-sm table-bordered mb-0" style="font-size: 0.85rem; table-layout: fixed; border-collapse: collapse;">
+                        <tbody class="text-center">
+                            <tr>
+                                <th class="table-light" style="width: 25%;">기 준 단 가</th>
+                                <td colspan="3" class="text-end px-2" id="sum_base_price" style="background-color: #e7f3ff;">0</td>
+                            </tr>
+                            <tr>
+                                <th class="table-light">기 본 료 수 량</th>
+                                <td class="text-end px-2" id="cnt_base">0</td>
+                                <th class="table-light">기 본 료</th>
+                                <td class="text-end px-2" id="sum_base_fee">0</td>
+                            </tr>
+                            <tr>
+                                <th class="table-light">정보처리비 수량</th>
+                                <td class="text-end px-2" id="cnt_info">0</td>
+                                <th class="table-light">정 보 처 리 비</th>
+                                <td class="text-end px-2" id="sum_info_fee">0</td>
+                            </tr>
+                            <tr>
+                                <th class="table-light">조 건 수 수 료</th>
+                                <td class="text-end px-2" id="sum_cond_fee">0</td>
+                                <th class="table-light">시 편 제 작 비</th>
+                                <td class="text-end px-2" id="sum_specimen_fee">0</td>
+                            </tr>
+                            <tr>
+                                <th class="table-light">출 장 구 분</th>
+                                <td class="text-end px-2" id="val_travel_type">-</td>
+                                <th class="table-light">출 장 비</th>
+                                <td class="text-end px-2" id="sum_travel_fee">0</td>
+                            </tr>
+                            <tr>
+                                <th class="table-light">할인제외금액</th>
+                                <td class="text-end px-2" id="sum_no_discount">0</td>
+                                <th class="table-light">할인가능금액</th>
+                                <td class="text-end px-2" id="sum_yes_discount">0</td>
+                            </tr>
+                            <tr>
+                                <th class="table-light">할 인 율</th>
+                                <td class="text-end px-2 text-primary" id="val_discount_rate">0%</td>
+                                <th class="table-light">정 액 할 인</th>
+                                <td class="text-end px-2 text-danger" id="val_fixed_discount">0</td>
+                            </tr>
+                            <tr>
+                                <th class="table-dark" style="color: white;">공 급 가 액</th>
+                                <td class="text-end px-2 fw-bold" id="total_supply_price" style="background-color: #e7f3ff;">0</td>
+                                <th class="table-dark" style="color: white;">부 가 세</th>
+                                <td class="text-end px-2 fw-bold" id="total_vat" style="background-color: #e7f3ff;">0</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 </div>
+
 
 <script>
 /**
  * ★ 18개 헤더 순서 고정 및 '담당자~의뢰번호' 틀고정 ★
  */
 const columnDefs = [
-    { field: "담당자", width: 100, pinned: 'left' },
-    { field: "영업구분", width: 90, pinned: 'left' },
+    { field: "담당자", width: 60, pinned: 'left' },
+    { field: "영업구분", width: 60, pinned: 'left' },
     { field: "의뢰번호", width: 120, pinned: 'left', cellClass: 'fw-bold' },
     // 의뢰번호 바로 다음으로 접수일시 이동
-    { field: "접수일시", width: 150, pinned: 'left' }, 
-    { field: "접수번호", width: 110 },
-    { field: "QT번호", width: 110 },
-    { field: "성적서번호", width: 110 },
+    { field: "접수일시", width: 120 }, 
+    { field: "접수번호", width: 120 },
+    { field: "QT번호", width: 100 },
+    { field: "성적서번호", width: 120 },
+    { field: "발급일자", width: 100 },
     { field: "의뢰기관명", width: 150 },
     { field: "사업명", width: 220 },
-    { field: "봉인명", width: 120 },
+    { field: "봉인명", width: 150 },
     { field: "준공예정일", width: 100 },
     { field: "실접수일", width: 100 },
     { field: "공급가액", width: 110, type: 'numericColumn', valueFormatter: p => Number(p.value||0).toLocaleString() },
-    { field: "부가세", width: 100, type: 'numericColumn', valueFormatter: p => Number(p.value||0).toLocaleString() },
-    { field: "할인율", width: 80 },
-    { field: "입금일", width: 100 },
+    { field: "부가세", width: 90, type: 'numericColumn', valueFormatter: p => Number(p.value||0).toLocaleString() },
+    { field: "할인율", width: 60 },
+    { field: "입금일", width: 90 },
     { field: "입금액", width: 110, type: 'numericColumn', valueFormatter: p => Number(p.value||0).toLocaleString() },
-    { field: "계산서발행일", width: 110 },
-    { field: "계산서발행회사명", width: 160 }
+    { field: "계산서발행일", width: 90 },
+    { field: "계산서발행회사명", width: 160 },
+    { field: "미인정", width: 80 }
 ];
 
 // 그리드 API를 담을 변수
@@ -75,7 +241,32 @@ const gridOptions = {
         resizable: true,
         headerClass: 'text-center'
     },
-    rowData: []
+    rowData: [],
+    // 이 줄이 핵심입니다. 데이터 높이에 맞춰 그리드 크기가 변합니다.
+    // domLayout: 'autoHeight', 
+
+   // --- 여기부터 추가 ---
+    onRowClicked: function(event) {
+        // event.data는 클릭한 행의 전체 데이터 객체입니다.
+        console.log("[AG Grid] 클릭된 데이터:", event.data);
+
+        // 이전 소스 코드 정보를 참고하여 'QT번호' 필드명을 추출합니다.
+        // 화면상 'QT번호'라고 적혀있으니 event.data.QT번호 또는 event.data['QT번호']로 접근합니다.
+        const qtNo = event.data.QT번호 || event.data.receipt_code;
+
+        console.log("추출된 QT번호:", qtNo);
+
+        if (qtNo && qtNo !== '-' && qtNo !== 'None') {
+            // 이전에 만들어둔 서버 요청 함수를 호출합니다.
+            fetchEstimateDetail(qtNo);
+        }
+    },
+    // --- 여기까지 추가 ---
+
+    
+    // 추가로 행 간격을 촘촘하게 만들고 싶다면 아래 설정도 도움이 됩니다.
+    headerHeight: 30,
+    rowHeight: 28
 };
 
 window.onload = function() {
@@ -98,32 +289,313 @@ window.onload = function() {
 function onSearch() {
     const sDate = document.getElementById('startDate').value;
     const eDate = document.getElementById('endDate').value;
+    const sTeam = document.getElementById('teamSelect').value; // [추가] 팀 선택값 가져오기
     const sType = document.getElementById('searchType').value;
     const sText = document.getElementById('searchText').value;
 
-    console.log("조회 실행:", sDate, eDate, sType, sText);
+    console.log("조회 실행:", sDate, eDate, sTeam, sType, sText);
 
-    // 1. URL 주소를 views.py 함수명과 일치시킴
-    const url = `/fetch_combined_data/?start=${sDate}&end=${eDate}&type=${sType}&text=${sText}`;
+    // 1. URL 주소에 team 파라미터 추가
+    // encodeURIComponent를 사용하여 한글(팀명, 검색어)이 깨지지 않게 처리합니다.
+    const url = `/fetch_combined_data/?start=${sDate}&end=${eDate}&team=${encodeURIComponent(sTeam)}&type=${sType}&text=${encodeURIComponent(sText)}`;
 
     fetch(url)
-        .then(res => res.json()) // 여기서 이름을 'res'로 정의했으므로 아래에서도 'res'를 써야 합니다.
-        .then(res => {
-            console.log("서버 응답 데이터:", res);
-            
-            // 2. 서버 응답이 성공이고 실제 데이터(res.data)가 리스트인 경우에만 그리드에 입력
-            if (res.status === 'success' && Array.isArray(res.data)) {
+    .then(res => res.json())
+    .then(res => {
+        console.log("서버 응답 데이터:", res);
+        
+        if (res.status === 'success' && Array.isArray(res.data)) {
+            // --- (1) 상단 AG Grid 데이터 로드 ---
+            if (gridApi.setGridOption) {
                 gridApi.setGridOption('rowData', res.data);
-                console.log("데이터 로드 완료:", res.data.length, "건");
             } else {
-                alert("데이터 로드 실패: " + (res.message || "알 수 없는 오류"));
-                gridApi.setGridOption('rowData', []);
+                gridApi.setRowData(res.data);
             }
-        })
-        .catch(err => {
-            console.error("데이터 로드 중 오류 발생:", err);
-            alert("조회 중 오류가 발생했습니다.");
-        });
+            console.log("그리드 로드 완료:", res.data.length, "건");
+             
+            // 4. [중요] 상단 빨간 테두리 합계 업데이트 호출
+            updateTopSummary(res.data);
+            // --- [추가된 부분] 빨간 테두리 요약 정보 업데이트 ---
+            // 상단 그리드 전체 데이터(res.data)와 통계 데이터(res.stats)를 활용합니다.
+            updateTotalSummary(res.data, res.stats);
+
+            // --- (2) 하단 통계 표(statsBody) 데이터 로드 ---
+            if (res.stats && Object.keys(res.stats).length > 0) {
+                console.log("통계 데이터 존재: 표 렌더링 시작");
+                renderStats(res.stats, res.stats);
+            } else {
+                console.warn("stats 데이터가 비어있습니다.");
+                renderStats({});
+            }
+
+        } else {
+            alert("데이터 로드 실패: " + (res.message || "알 수 없는 오류"));
+            const emptyData = [];
+            if (gridApi.setGridOption) {
+                gridApi.setGridOption('rowData', emptyData);
+            } else {
+                gridApi.setRowData(emptyData);
+            }
+            updateTotalSummary([], {}); // 에러 시 요약 정보도 0으로 초기화
+            renderStats({});
+        }
+    })
+    .catch(err => {
+        console.error("데이터 로드 중 오류 발생:", err);
+        alert("조회 중 오류가 발생했습니다.");
+    });
 }
+
+// 합계 계산코드
+
+function renderStats(allData, stats) {
+    const tbody = document.getElementById('statsBody');
+    if (!tbody || !stats) return;
+
+    tbody.innerHTML = ''; 
+    const teams = ['1팀', '2팀', '3팀', '4팀', '5팀', '6팀'];
+    
+    // --- [추가] 합계 저장을 위한 변수 초기화 ---
+    const teamTotals = {};
+    teams.forEach(t => {
+        teamTotals[t] = {
+            in: { 금액: 0, 건수: 0, 발급: 0 },
+            un: { 금액: 0, 건수: 0, 발급: 0 }
+        };
+    });
+
+    let htmlContent = "";
+
+    // 1. 담당자별 행 생성 및 합계 누적
+    Object.keys(stats).sort().forEach(name => {
+        const userData = stats[name];
+        
+        let rowIn = `<tr>
+            <td rowspan="2" class="fw-bold bg-light align-middle text-center" style="position:sticky; left:0; z-index:5; border-right:1px solid #dee2e6;">${name}</td>
+            <td class="bg-white text-center" style="position:sticky; left:80px; z-index:5; border-right:2px solid #dee2e6;">인정건</td>`;
+        let rowUn = `<tr>
+            <td class="bg-white text-center" style="position:sticky; left:80px; z-index:5; border-right:2px solid #dee2e6;">미인정건</td>`;
+
+        teams.forEach(t => {
+            const dIn = userData[t]["인정건"];
+            const dUn = userData[t]["미인정건"];
+
+            // 합계 데이터 누적
+            teamTotals[t].in.금액 += dIn.금액;
+            teamTotals[t].in.건수 += dIn.건수;
+            teamTotals[t].in.발급 += dIn.발급;
+            teamTotals[t].un.금액 += dUn.금액;
+            teamTotals[t].un.건수 += dUn.건수;
+            teamTotals[t].un.발급 += dUn.발급;
+
+            rowIn += `<td class="text-end">${dIn.금액.toLocaleString()}</td><td class="text-center">${dIn.건수}(${dIn.발급})</td>`;
+            rowUn += `<td class="text-end">${dUn.금액.toLocaleString()}</td><td class="text-center">${dUn.건수}(${dUn.발급})</td>`;
+        });
+        htmlContent += rowIn + "</tr>" + rowUn + "</tr>";
+    });
+
+    // --- [복구] 2. 하단 팀별 합계 행 생성 ---
+    let totalAmt = 0, totalCnt = 0, totalIss = 0;
+    let fIn = `<tr class="table-warning fw-bold">
+        <td rowspan="2" class="align-middle text-center" style="position:sticky; left:0; z-index:5;">합계</td>
+        <td class="text-center" style="position:sticky; left:80px; z-index:5; border-right:2px solid #dee2e6;">인정건</td>`;
+    let fUn = `<tr class="table-warning fw-bold">
+        <td class="text-center" style="position:sticky; left:80px; z-index:5; border-right:2px solid #dee2e6;">미인정건</td>`;
+
+    teams.forEach(t => {
+        const i = teamTotals[t].in;
+        const u = teamTotals[t].un;
+        
+        // 전사 총합계용 누적
+        totalAmt += (i.금액 + u.금액);
+        totalCnt += (i.건수 + u.건수);
+        totalIss += (i.발급 + u.발급);
+
+        fIn += `<td class="text-end">${i.금액.toLocaleString()}</td><td class="text-center">${i.건수}(${i.발급})</td>`;
+        fUn += `<td class="text-end">${u.금액.toLocaleString()}</td><td class="text-center">${u.건수}(${u.발급})</td>`;
+    });
+    
+    htmlContent += fIn + "</tr>" + fUn + "</tr>";
+
+    // --- [복구] 3. 맨 아래 전사 총합계 한 줄 ---
+    htmlContent += `
+        <tr class="table-dark text-white fw-bold">
+            <td colspan="2" class="text-center" style="position:sticky; left:0; z-index:5;">총합계</td>
+            <td colspan="12" class="text-center">
+                총 금액: ${totalAmt.toLocaleString()}원 / 
+                총 건수: ${totalCnt.toLocaleString()}건 / 
+                총 발급: ${totalIss.toLocaleString()}건
+            </td>
+        </tr>`;
+
+    tbody.innerHTML = htmlContent;
+}
+
+
+
+function updateTotalSummary(allData, stats) {
+    const summaryElement = document.getElementById('totalSummary');
+    if (!summaryElement) return;
+
+    // 1. 전체 건수: 상단 리스트의 실제 행 개수 (예: 6건)
+    const totalCount = allData ? allData.length : 0;
+
+    let actualStatsCount = 0;   // 제목에 표시할 '집계 건수' (0원 제외)
+    let actualStatsAmount = 0;  // 제목에 표시할 '집계 총금액'
+
+    if (allData && allData.length > 0) {
+        allData.forEach(row => {
+            // 공급가액 데이터를 가져옵니다.
+            const price = Number(row['공급가액']) || 0; 
+            
+            // [핵심] 제목 요약용 계산에서만 0원을 필터링합니다.
+            if (price > 0) {
+                actualStatsCount++; 
+                actualStatsAmount += price; 
+            }
+        });
+    }
+
+    // 결과 출력: 표의 건수와 상관없이 제목에는 필터링된 값이 나옵니다.
+    summaryElement.innerHTML = `
+        <span class="text-muted">전체:</span> [${totalCount.toLocaleString()}]건 | 
+        <span class="text-muted">집계:</span> [${actualStatsCount.toLocaleString()}]건 | 
+        <span class="text-muted">집계총금액:</span> <span class="text-danger">${actualStatsAmount.toLocaleString()}</span>원
+    `;
+}
+
+
+// 여기서부터 견적 상세
+// 1. 서버에 상세 데이터를 요청하는 함수
+// 1. 서버 통신 함수 (가장 먼저 확인)
+async function fetchEstimateDetail(qtNo) {
+    console.log("[요청] QT번호 전송 시작:", qtNo);
+    
+    // 로딩 표시
+    const detailBody = document.getElementById('estimateDetailBody');
+    if (detailBody) detailBody.innerHTML = '<tr><td colspan="5" class="text-center py-4">조회 중...</td></tr>';
+
+    try {
+        const response = await fetch(`/get_estimate_detail/?qt_no=${qtNo}`);
+        const result = await response.json();
+
+        console.log("[응답] 서버에서 받은 전체 데이터:", result); // 여기서 구조를 꼭 확인하세요!
+
+        if (result.status === 'success') {
+            // 상세 리스트 그리기 (result.data)
+            if (result.data) {
+                renderEstimateDetail(result.data, qtNo);
+            }
+            
+            // 요약표 그리기 (result.summary)
+            if (result.summary) {
+                updateSummaryTable(result.summary);
+            } else {
+                console.warn("[경고] summary 데이터가 응답에 없습니다.");
+            }
+        } else {
+            console.error("[에러] 서버 응답 실패:", result.message);
+        }
+    } catch (error) {
+        console.error("[에러] 네트워크 통신 실패:", error);
+    }
+}
+
+// 2. 견적 상세 내역 렌더링
+function renderEstimateDetail(data, qtNo) {
+    const body = document.getElementById('estimateDetailBody');
+    const badge = document.getElementById('selectedQtDisplay');
+    if (badge) badge.innerText = `QT번호: ${qtNo}`;
+    if (!body) return;
+
+    body.innerHTML = ''; 
+
+    if (!data || data.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" class="text-center py-4">내역이 없습니다.</td></tr>';
+        return;
+    }
+
+    data.forEach((item, index) => {
+        // item['시험항목'] 등 서버에서 정의한 한글 키값을 사용합니다.
+        body.innerHTML += `
+            <tr>
+                <td class="text-center">${index + 1}</td>
+                <td>${item.시험항목 || '-'}</td>
+                <td class="text-center">${Number(item.수량 || 0).toLocaleString()}</td>
+                <td class="text-end">${Number(item.단가 || 0).toLocaleString()}</td>
+                <td class="text-end fw-bold text-primary">${Number(item.금액 || 0).toLocaleString()}</td>
+            </tr>`;
+    });
+    console.log("[완료] 상세 내역 렌더링 성공");
+}
+
+// 3. 공급금액 상세 요약 렌더링
+function updateSummaryTable(data) {
+    console.log("[진입] 요약표 업데이트 데이터:", data);
+    const fmt = (num) => Number(num || 0).toLocaleString();
+
+    // 출장구분 한글 변환
+    let travelTypeText = '-';
+    if (data.travel_type == '1') travelTypeText = '본원';
+    else if (data.travel_type == '2') travelTypeText = '지원';
+    else travelTypeText = data.travel_type || '-';
+
+    try {
+        // ID 매칭 및 값 삽입
+        document.getElementById('sum_base_price').innerText = fmt(data.base_price);
+        document.getElementById('cnt_base').innerText = data.base_cnt || 0;
+        document.getElementById('sum_base_fee').innerText = fmt(data.base_fee);
+        document.getElementById('cnt_info').innerText = data.info_cnt || 0;
+        document.getElementById('sum_info_fee').innerText = fmt(data.info_fee);
+        document.getElementById('sum_cond_fee').innerText = fmt(data.cond_fee);
+        document.getElementById('sum_specimen_fee').innerText = fmt(data.specimen_fee);
+        document.getElementById('val_travel_type').innerText = travelTypeText;
+        document.getElementById('sum_travel_fee').innerText = fmt(data.travel_fee);
+        document.getElementById('sum_no_discount').innerText = fmt(data.no_discount_amt);
+        document.getElementById('sum_yes_discount').innerText = fmt(data.yes_discount_amt);
+        document.getElementById('val_discount_rate').innerText = (data.discount_rate || 0) + "%";
+        document.getElementById('val_fixed_discount').innerText = fmt(data.fixed_discount_amt);
+        document.getElementById('total_supply_price').innerText = fmt(data.supply_value);
+        document.getElementById('total_vat').innerText = fmt(data.vat);
+        
+        console.log("[완료] 요약표 렌더링 성공");
+    } catch (e) {
+        console.error("[에러] 요약표 렌더링 중 ID 매칭 실패:", e);
+    }
+}
+
+function updateTopSummary(data) {
+    // 콤마 포맷 함수
+    const fmt = (num) => Number(num || 0).toLocaleString();
+
+    // 데이터 전체의 합계를 계산 (그리드에 로드된 전체 데이터 기준)
+    const summary = data.reduce((acc, row) => {
+        acc.supply += Number(row.공급가액 || 0);
+        acc.vat += Number(row.부가세 || 0);
+        acc.deposit += Number(row.입금액 || 0);
+        return acc;
+    }, { supply: 0, vat: 0, deposit: 0 });
+
+    // HTML 요소에 반영
+    document.getElementById('top_total_supply').innerText = fmt(summary.supply);
+    document.getElementById('top_total_vat').innerText = fmt(summary.vat);
+    document.getElementById('top_total_deposit').innerText = fmt(summary.deposit);
+}
+
+// 엑셀 다운로드 버튼 클릭 시 실행될 함수 (AG Grid 기능 활용)
+function downloadExcel() {
+    // [수정] gridOptions.api 대신 전역 변수인 gridApi를 직접 사용합니다.
+    if (gridApi) {
+        console.log("[LOG] 엑셀 다운로드 시작...");
+        gridApi.exportDataAsExcel({
+            fileName: `영업현황_조회결과_${new Date().toISOString().slice(0,10)}.xlsx`,
+            sheetName: '조회결과'
+        });
+    } else {
+        console.error("[ERROR] 그리드 API가 초기화되지 않았습니다.");
+        alert("데이터 로드 후 다시 시도해주세요.");
+    }
+}
+
 </script>
 {% endblock %}

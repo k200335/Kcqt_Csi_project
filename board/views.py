@@ -511,153 +511,450 @@ def save_csi_matching_data(request):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
         
-
-        # 여기서부터 QT 통합코드 작성
-
-
-
-
-
-
-# views.py에서 MSSQL만 테스트
+# 여기서 부터 QT 통합
 # @csrf_exempt
 # def fetch_combined_data(request):
 #     try:
-#         # 1. MySQL 데이터 가져오기
-#         mysql_query = "SELECT * FROM csi_receipts ORDER BY 접수일시 DESC LIMIT 50"
+#         # 1. 파라미터 수집 (team 파라미터 추가)
+#         if request.method == 'POST' and request.body:
+#             try:
+#                 import json
+#                 data = json.loads(request.body)
+#                 start_date = data.get('start', '').strip()
+#                 end_date = data.get('end', '').strip()
+#                 team_filter = data.get('team', '전체').strip() # [추가] 팀 정보
+#                 search_query = data.get('text', '').strip()
+#                 raw_type = data.get('type', '').strip()
+#             except Exception:
+#                 start_date = end_date = team_filter = search_query = raw_type = ""
+#         else:
+#             start_date = request.GET.get('start', '').strip()
+#             end_date = request.GET.get('end', '').strip()
+#             team_filter = request.GET.get('team', '전체').strip() # [추가] 팀 정보
+#             search_query = request.GET.get('text', '').strip()
+#             raw_type = request.GET.get('type', '').strip()
+
+#         # 2. 타입 변환
+#         search_type = '사업명'
+#         if raw_type == 'client':
+#             search_type = '의뢰기관명'
+#         elif raw_type == 'project':
+#             search_type = '사업명'
+#         elif raw_type == 'req_code': 
+#             search_type = '의뢰번호'
+
+#         # 디버깅 출력 (팀 정보 포함)
+#         print(f"DEBUG: 시작일={start_date}, 종료일={end_date}, 팀={team_filter}, 검색어={search_query}, 타입={search_type}")
+
+#         # 3. MySQL: 조건부 쿼리 생성
+#         where_clauses = []
+#         params = []
+
+#         # [날짜 조건]
+#         if start_date and end_date:
+#             where_clauses.append("r.배정일자 BETWEEN %s AND %s")
+#             params.extend([f"{start_date} 00:00:00", f"{end_date} 23:59:59"])
+
+#         # [팀별 필터 조건 추가] 
+#         # team_filter가 '전체'가 아닐 경우에만 담당자 컬럼에서 해당 팀을 검색합니다.
+#         if team_filter and team_filter != '전체':
+#             where_clauses.append("r.담당자 LIKE %s")
+#             params.append(f"%{team_filter}%")
+
+#         # [검색어 조건]
+#         if search_query:
+#             if search_type == '의뢰번호':
+#                 where_clauses.append("r.의뢰번호 LIKE %s")
+#                 params.append(f"%{search_query}%")
+#             elif search_type == '의뢰기관명':
+#                 where_clauses.append("r.의뢰기관명 LIKE %s")
+#                 params.append(f"%{search_query}%")
+#             elif search_type == '사업명':
+#                 where_clauses.append("r.사업명 LIKE %s")
+#                 params.append(f"%{search_query}%")
+#             else:
+#                 where_clauses.append("(r.의뢰번호 LIKE %s OR r.의뢰기관명 LIKE %s OR r.사업명 LIKE %s)")
+#                 params.extend([f"%{search_query}%"] * 3)
+
+#         # 최종 WHERE 절 합성
+#         where_sentence = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+#         mysql_query = f"""
+#             SELECT r.*, i.성적서번호,i.발급일자,r.미인정 
+#             FROM csi_receipts r 
+#             LEFT JOIN csi_issue_results i ON r.의뢰번호 = i.의뢰번호 
+#             {where_sentence}
+#             ORDER BY r.담당자 ASC LIMIT 5000
+#         """
+
 #         with connections['default'].cursor() as mysql_cursor:
-#             mysql_cursor.execute(mysql_query)
+#             mysql_cursor.execute(mysql_query, params)
 #             columns = [col[0] for col in mysql_cursor.description]
 #             mysql_rows = [dict(zip(columns, row)) for row in mysql_cursor.fetchall()]
 
-#         # 2. 의뢰번호 리스트 정제 (문자열로 변환하고 빈 값 제거)
+#         # 4. 의뢰번호 추출 및 MSSQL 데이터 매칭 (기존 로직 유지)
 #         req_codes = [str(row['의뢰번호']).strip() for row in mysql_rows if row.get('의뢰번호')]
-        
 #         mssql_dict = {}
-#         # 3. MSSQL 조회 (데이터가 있을 때만 실행)
-#         if req_codes:
-#             with connections['mssql'].cursor() as mssql_cursor:
-#                 # %s나 ? 대신 f-string과 join을 사용하여 직접 리스트를 처리하는 대신
-#                 # 가장 안전한 파라미터 바인딩 방식을 사용합니다.
-#                 placeholders = ', '.join(['%s'] * len(req_codes))
-#                 # 주의: django-mssql-backend 종류에 따라 %s 대신 ?를 써야 할 수도 있습니다.
-#                 # 만약 아래에서 에러가 다시 나면 %s를 ?로만 바꿔주세요.
-#                 mssql_query = f"SELECT request_code, receipt_csi_code, receipt_code FROM dbo.Receipt WHERE request_code IN ({placeholders})"
-                
-#                 mssql_cursor.execute(mssql_query, req_codes)
-                
-#                 m_cols = [col[0] for col in mssql_cursor.description]
-#                 for m_row in mssql_cursor.fetchall():
-#                     m_item = dict(zip(m_cols, m_row))
-#                     mssql_dict[str(m_item['request_code']).strip()] = m_item
 
-#         # 4. 데이터 합치기
+#         if req_codes:
+#             chunk_size = 1000
+#             with connections['mssql'].cursor() as mssql_cursor:
+#                 for i in range(0, len(req_codes), chunk_size):
+#                     chunk = req_codes[i : i + chunk_size]
+#                     placeholders = ', '.join(['%s'] * len(chunk))
+                    
+#                     mssql_query = f"""
+#                         SELECT 
+#                             a.sales, a.request_code, a.receipt_csi_code, a.receipt_code, b.completion_day, a.save_date, 
+#                             b.builder, b.construction, c.specimen, d.supply_value, d.vat,
+#                             e.deposit_day, e.deposit, f.issue_date, f.company
+#                         FROM dbo.Receipt a
+#                         LEFT JOIN dbo.Customer b     ON a.receipt_code = b.receipt_code
+#                         LEFT JOIN dbo.Specimen_info c ON a.receipt_code = c.receipt_code
+#                         LEFT JOIN dbo.Estimate d      ON a.receipt_code = d.receipt_code
+#                         LEFT JOIN dbo.Deposit e       ON a.receipt_code = e.receipt_code
+#                         LEFT JOIN dbo.Tax_Manager f   ON a.receipt_code = f.receipt_code
+#                         WHERE a.request_code IN ({placeholders})
+#                     """
+#                     mssql_cursor.execute(mssql_query, chunk)
+#                     m_cols = [col[0] for col in mssql_cursor.description]
+#                     for m_row in mssql_cursor.fetchall():
+#                         m_item = dict(zip(m_cols, m_row))
+#                         mssql_dict[str(m_item['request_code']).strip()] = m_item
+
+#         # 5. 최종 데이터 합체 (기존 코드 유지)
 #         final_results = []
 #         for row in mysql_rows:
-#             # MySQL의 의뢰번호와 MSSQL의 키값을 동일한 포맷(문자열+공백제거)으로 비교
 #             req_no = str(row.get('의뢰번호', '')).strip()
 #             ms_info = mssql_dict.get(req_no, {})
             
+#             # [핵심 변경] MySQL 의뢰번호가 QT-로 시작하면 이를 QT번호로 사용
+#             if req_no.startswith('QT-'):
+#                 display_qt_no = req_no
+#             else:
+#                 display_qt_no = ms_info.get('receipt_code', '-')         
+
 #             final_results.append({
 #                 "담당자": row.get('담당자', ''),
 #                 "영업구분": row.get('영업구분', ''),
 #                 "의뢰번호": req_no,
 #                 "접수일시": str(row.get('접수일시', '')),
 #                 "접수번호": ms_info.get('receipt_csi_code', '-'),
-#                 "QT번호": ms_info.get('receipt_code', '-'),
+#                 # "QT번호": ms_info.get('receipt_code', '-'),
+#                 "QT번호": display_qt_no, # 수정된 변수 적용
+#                 "성적서번호": row.get('성적서번호', '-'),
+#                 "발급일자": str(row.get('발급일자')) if row.get('발급일자') else "",
 #                 "의뢰기관명": row.get('의뢰기관명', ''),
-#                 "사업명": row.get('사업명', '')
+#                 "사업명": ms_info.get('construction', row.get('사업명', '')),
+#                 "봉인명": ms_info.get('specimen', '-'),
+#                 "준공예정일": str(ms_info.get('completion_day')) if ms_info.get('completion_day') else "",
+#                 "실접수일": str(ms_info.get('save_date')) if ms_info.get('save_date') else "",
+#                 "공급가액": ms_info.get('supply_value', 0),
+#                 "부가세": ms_info.get('vat', 0),
+#                 "입금일": ms_info.get('deposit_day', 0),
+#                 "입금액": ms_info.get('deposit', 0),
+#                 "계산서발행일": str(ms_info.get('issue_date')),
+#                 "계산서발행회사명": ms_info.get('company', '-'),
+#                 "미인정": row.get('미인정', '') if ms_info.get('issue_date') else ""
 #             })
 
-#         return JsonResponse({'status': 'success', 'data': final_results})
+#         # [추가] 6. 통계 집계 로직
+#         stats = {}
+#         teams = ['1팀', '2팀', '3팀', '4팀', '5팀', '6팀']
+        
+#         print("\n" + ">>>" * 20)
+#         print(" [실시간 집계 추적 시작]")
+        
+#         for idx, res in enumerate(final_results):
+#             # 1. 원본 데이터 확인
+#             raw_name = res.get('영업구분', '')
+#             raw_manager = res.get('담당자', '')
+#             raw_price = res.get('공급가액', 0)
+#             req_no = res.get('의뢰번호', '번호없음')
+
+#             # 2. 이름 결정 (영업구분이 우선, 없으면 담당자)
+#             name = (raw_name or raw_manager or '').strip()
+            
+#             # 3. 금액 변환 과정 추적
+#             try:
+#                 # 숫자가 아닌 문자(콤마 등)가 섞였을 때를 대비
+#                 clean_price = str(raw_price).replace(',', '')
+#                 price = int(float(clean_price))
+#             except:
+#                 price = 0
+
+#             # 4. 팀 판별 과정 추적
+#             target_team = "미분류"
+#             for t in teams:
+#                 if t in str(raw_manager):
+#                     target_team = t
+#                     break
+
+#             # 5. 인정/미인정 판별
+#             is_unconfirmed = True if res.get('미인정') else False
+#             type_key = "미인정건" if is_unconfirmed else "인정건"
+
+#             # --- [터미널 실시간 출력] ---
+#             # 모든 행을 출력하면 너무 많으니, 처음 20개 정도만 보거나 
+#             # 금액이 있는 경우만 골라서 출력하여 흐름을 확인합니다.
+#             if price > 0:
+#                 print(f" -> [{req_no}] 이름:{name} | 팀:{target_team} | {type_key} | 금액:{price:,}원 >> [집계추가]")
+#             else:
+#                 # 금액이 0원인 것들은 왜 0원인지 확인
+#                 print(f" -> [{req_no}] 집계제외(금액0): {name} | 원본금액데이터:{raw_price}")
+
+#             # 6. 실제 데이터 누적
+#             if not name: continue
+            
+#             if name not in stats:
+#                 stats[name] = {t: {"인정건": {"금액": 0, "건수": 0}, "미인정건": {"금액": 0, "건수": 0}} for t in teams}
+
+#             if target_team in teams:
+#                 stats[name][target_team][type_key]["금액"] += price
+#                 stats[name][target_team][type_key]["건수"] += 1
+
+#         print(f" [최종 결과] 생성된 담당자 수: {len(stats)}명")
+#         print("<<<" * 20 + "\n")
+#         print(f"DEBUG: 최종 전달할 담당자 수: {len(stats)}명")
+#         return JsonResponse({'status': 'success', 'data': final_results, 'stats': stats})
 
 #     except Exception as e:
-#         # 에러 발생 시 로그를 위해 에러 타입도 함께 출력
-#         return JsonResponse({'status': 'error', 'message': f"Type: {type(e).__name__}, Msg: {str(e)}"})
+#         import traceback
+#         print(traceback.format_exc())
+#         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
 
+
+# 여기서부터 테스트용 입니다(발급건수 카운터용)
 @csrf_exempt
 def fetch_combined_data(request):
     try:
-        # 1. MySQL: 기본 데이터 및 성적서번호 가져오기
-        mysql_query = """
-            SELECT r.*, i.성적서번호 
+        # 1. 파라미터 수집
+        if request.method == 'POST' and request.body:
+            import json
+            data = json.loads(request.body)
+            start_date = data.get('start', '').strip()
+            end_date = data.get('end', '').strip()
+            team_filter = data.get('team', '전체').strip()
+            search_query = data.get('text', '').strip()
+            raw_type = data.get('type', '').strip()
+        else:
+            start_date = request.GET.get('start', '').strip()
+            end_date = request.GET.get('end', '').strip()
+            team_filter = request.GET.get('team', '전체').strip()
+            search_query = request.GET.get('text', '').strip()
+            raw_type = request.GET.get('type', '').strip()
+
+        # 2. 타입 변환
+        search_type = '사업명'
+        if raw_type == 'client': search_type = '의뢰기관명'
+        elif raw_type == 'project': search_type = '사업명'
+        elif raw_type == 'req_code': search_type = '의뢰번호'
+
+        # 3. MySQL 쿼리 실행
+        where_clauses = []
+        params = []
+        if start_date and end_date:
+            where_clauses.append("r.배정일자 BETWEEN %s AND %s")
+            params.extend([f"{start_date} 00:00:00", f"{end_date} 23:59:59"])
+        if team_filter and team_filter != '전체':
+            where_clauses.append("r.담당자 LIKE %s")
+            params.append(f"%{team_filter}%")
+        if search_query:
+            if search_type == '의뢰번호':
+                where_clauses.append("r.의뢰번호 LIKE %s")
+                params.append(f"%{search_query}%")
+            elif search_type == '의뢰기관명':
+                where_clauses.append("r.의뢰기관명 LIKE %s")
+                params.append(f"%{search_query}%")
+            else:
+                where_clauses.append("r.사업명 LIKE %s")
+                params.append(f"%{search_query}%")
+
+        where_sentence = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        mysql_query = f"""
+            SELECT r.*, i.성적서번호, i.발급일자, r.미인정 
             FROM csi_receipts r 
             LEFT JOIN csi_issue_results i ON r.의뢰번호 = i.의뢰번호 
-            ORDER BY r.접수일시 DESC LIMIT 100
+            {where_sentence}
+            ORDER BY r.담당자 ASC LIMIT 5000
         """
+
         with connections['default'].cursor() as mysql_cursor:
-            mysql_cursor.execute(mysql_query)
+            mysql_cursor.execute(mysql_query, params)
             columns = [col[0] for col in mysql_cursor.description]
             mysql_rows = [dict(zip(columns, row)) for row in mysql_cursor.fetchall()]
 
-        # 2. 의뢰번호 리스트 추출
+        # 4. MSSQL 데이터 매칭
         req_codes = [str(row['의뢰번호']).strip() for row in mysql_rows if row.get('의뢰번호')]
-        
         mssql_dict = {}
-        # 3. MSSQL: 6개 테이블 조인 쿼리
         if req_codes:
+            chunk_size = 1000
             with connections['mssql'].cursor() as mssql_cursor:
-                placeholders = ', '.join(['%s'] * len(req_codes))
-                
-                # 제공해주신 테이블 정보를 바탕으로 조인 쿼리 작성
-                mssql_query = f"""
-                    SELECT 
-                        a.request_code, 
-                        a.receipt_csi_code, 
-                        b.builder, b.construction, b.completion_day, b.save_date,
-                        c.specimen,
-                        d.receipt_code, d.supply_value,
-                        e.deposit, e.deposit_day,
-                        f.issue_date, f.company
-                    FROM dbo.Receipt a
-                    LEFT JOIN dbo.Customer b ON a.request_code = b.request_code
-                    LEFT JOIN dbo.Specimen_info c ON a.request_code = c.request_code
-                    LEFT JOIN dbo.Estimate d ON a.request_code = d.request_code
-                    LEFT JOIN dbo.Deposit e ON a.request_code = e.request_code
-                    LEFT JOIN dbo.Tax_Manager f ON a.request_code = f.request_code
-                    WHERE a.request_code IN ({placeholders})
-                """
-                mssql_cursor.execute(mssql_query, req_codes)
-                
-                m_cols = [col[0] for col in mssql_cursor.description]
-                for m_row in mssql_cursor.fetchall():
-                    m_item = dict(zip(m_cols, m_row))
-                    mssql_dict[str(m_item['request_code']).strip()] = m_item
+                for i in range(0, len(req_codes), chunk_size):
+                    chunk = req_codes[i : i + chunk_size]
+                    placeholders = ', '.join(['%s'] * len(chunk))
+                    mssql_query = f"""
+                        SELECT a.sales, a.request_code, a.receipt_csi_code, a.receipt_code, b.completion_day, a.save_date, 
+                               b.builder, b.construction, c.specimen, d.supply_value, d.vat, d.rate,
+                               e.deposit_day, e.deposit, f.issue_date, f.company
+                        FROM dbo.Receipt a
+                        LEFT JOIN dbo.Customer b ON a.receipt_code = b.receipt_code
+                        LEFT JOIN dbo.Specimen_info c ON a.receipt_code = c.receipt_code
+                        LEFT JOIN dbo.Estimate d ON a.receipt_code = d.receipt_code
+                        LEFT JOIN dbo.Deposit e ON a.receipt_code = e.receipt_code
+                        LEFT JOIN dbo.Tax_Manager f ON a.receipt_code = f.receipt_code
+                        WHERE a.request_code IN ({placeholders})
+                    """
+                    mssql_cursor.execute(mssql_query, chunk)
+                    m_cols = [col[0] for col in mssql_cursor.description]
+                    for m_row in mssql_cursor.fetchall():
+                        m_item = dict(zip(m_cols, m_row))
+                        mssql_dict[str(m_item['request_code']).strip()] = m_item
 
-        # 4. 데이터 최종 합체
+        # 5. 최종 데이터 합체 및 통계 집계
         final_results = []
+        stats = {}  # stats로 변수명 통일
+        teams = ['1팀', '2팀', '3팀', '4팀', '5팀', '6팀']
+
         for row in mysql_rows:
             req_no = str(row.get('의뢰번호', '')).strip()
             ms_info = mssql_dict.get(req_no, {})
             
-            final_results.append({
+            # 발급일자 확인 (날짜 형식이 포함되어 있는지)
+            issue_date = str(row.get('발급일자', '')).strip()
+            is_issued = 1 if issue_date and issue_date not in ['None', '', '-', '0000-00-00'] else 0
+
+            # 합체 데이터 생성
+            res_item = {
                 "담당자": row.get('담당자', ''),
                 "영업구분": row.get('영업구분', ''),
                 "의뢰번호": req_no,
                 "접수일시": str(row.get('접수일시', '')),
-                "접수번호": ms_info.get('receipt_csi_code', '-'), # AC번호
-                "QT번호": ms_info.get('receipt_code', '-'),      # QT번호
+                "접수번호": ms_info.get('receipt_csi_code', '-'),
+                "QT번호": req_no if req_no.startswith('QT-') else ms_info.get('receipt_code', '-'),
                 "성적서번호": row.get('성적서번호', '-'),
+                # "발급일자": issue_date,
+                "발급일자": str(row.get('발급일자')) if row.get('발급일자') else "",
                 "의뢰기관명": row.get('의뢰기관명', ''),
-                "사업명": ms_info.get('construction', row.get('사업명', '')), # MSSQL 공사명 우선
-                "봉인명": ms_info.get('specimen', '-'),          # 시료명
-                "실접수일": str(ms_info.get('save_date', '-')),
+                "사업명": ms_info.get('construction', row.get('사업명', '')),
                 "공급가액": ms_info.get('supply_value', 0),
+                "봉인명": ms_info.get('specimen', '-'),
+                "준공예정일": str(ms_info.get('completion_day')) if ms_info.get('completion_day') else "",
+                "실접수일": str(ms_info.get('save_date')) if ms_info.get('save_date') else "",
+                "공급가액": ms_info.get('supply_value', 0),
+                "부가세": ms_info.get('vat', 0),
+                "할인율": ms_info.get('rate', 0),
+                "입금일": ms_info.get('deposit_day', 0),
                 "입금액": ms_info.get('deposit', 0),
-                "계산서발행일": str(ms_info.get('issue_date', '-'))
-            })
+                "계산서발행일": str(ms_info.get('issue_date')),
+                "계산서발행회사명": ms_info.get('company', '-'),
+                "미인정": row.get('미인정', '')   
+            }
+            final_results.append(res_item)
 
-        return JsonResponse({'status': 'success', 'data': final_results})
+            # [집계 로직]
+            name = (res_item["영업구분"] or res_item["담당자"] or '').strip()
+            if not name: continue
+
+            # 팀 판별
+            target_team = "미분류"
+            for t in teams:
+                if t in str(res_item["담당자"]):
+                    target_team = t
+                    break
+
+            # 인정/미인정 판별
+            type_key = "미인정건" if res_item["미인정"] else "인정건"
+
+            # stats 구조 초기화
+            if name not in stats:
+                stats[name] = {t: {"인정건": {"금액": 0, "건수": 0, "발급": 0}, 
+                                  "미인정건": {"금액": 0, "건수": 0, "발급": 0}} for t in teams}
+
+            # 누적
+            if target_team in teams:
+                try:
+                    price = int(float(str(res_item["공급가액"]).replace(',', '')))
+                except:
+                    price = 0
+                stats[name][target_team][type_key]["금액"] += price
+                stats[name][target_team][type_key]["건수"] += 1
+                stats[name][target_team][type_key]["발급"] += is_issued
+
+        return JsonResponse({'status': 'success', 'data': final_results, 'stats': stats})
 
     except Exception as e:
-        return JsonResponse({'status': 'error', 'message': f"Type: {type(e).__name__}, Msg: {str(e)}"})
-
-
-
+        import traceback
+        print(traceback.format_exc())
+        return JsonResponse({'status': 'error', 'message': str(e)})
 
 
 # 5. 페이지 호출 함수 (AttributeError 해결)
 def request_page(request):
-    return render(request, 'request.html')    
+    return render(request, 'request.html') 
+
+
+# 여기서부터 견적불러오기
+def get_estimate_detail(request):
+    qt_no = request.GET.get('qt_no', '').strip()
+    
+    print(f"\n[LOG] 상세 및 요약 데이터 요청 수신: {qt_no}")
+
+    if not qt_no or qt_no in ['-', 'None', '']:
+        return JsonResponse({'status': 'error', 'message': '유효하지 않은 QT번호입니다.'})
+
+    try:
+        with connections['mssql'].cursor() as cursor:
+            # 1. 견적 상세 리스트 조회 (기존 유지)
+            detail_query = """
+                SELECT item_name as 시험항목, count as 수량, ei_cost as 단가, ei_price as 금액
+                FROM dbo.Examination_Item
+                WHERE receipt_code = %s
+            """
+            cursor.execute(detail_query, [qt_no])
+            detail_columns = [col[0] for col in cursor.description]
+            rows = [dict(zip(detail_columns, row)) for row in cursor.fetchall()]
+
+            # 2. 금액 요약 데이터 조회 (새로 추가)
+            # 요청하신 컬럼명 매칭: std_cost, basic_qty, basic 등
+            summary_query = """
+                SELECT 
+                    std_cost as base_price,
+                    basic_qty as base_cnt,
+                    basic as base_fee,
+                    process_qty as info_cnt,
+                    process as info_fee,
+                    commission as cond_fee,
+                    sample as specimen_fee,
+                    [tran_set] as travel_type,
+                    [tran] as travel_fee,
+                    impossible as no_discount_amt,
+                    possible as yes_discount_amt,
+                    rate as discount_rate,
+                    discount as fixed_discount_amt,
+                    supply_value as supply_value,
+                    vat as vat
+                FROM dbo.Estimate
+                WHERE receipt_code = %s
+            """
+            cursor.execute(summary_query, [qt_no])
+            summary_columns = [col[0] for col in cursor.description]
+            summary_row = cursor.fetchone()
+            
+            # 데이터가 있으면 dict 변환, 없으면 빈 dict
+            summary_data = dict(zip(summary_columns, summary_row)) if summary_row else {}
+
+            print(f"[LOG] 상세: {len(rows)}건 / 요약 데이터 존재 여부: {'Yes' if summary_data else 'No'}")
+
+        # 두 데이터를 합쳐서 전송
+        return JsonResponse({
+            'status': 'success', 
+            'data': rows, 
+            'summary': summary_data
+        })
+        
+    except Exception as e:
+        print(f"[LOG] 에러 발생: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': str(e)})
