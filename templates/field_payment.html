@@ -234,12 +234,8 @@ if (result.data.length === 0) {
                         <table class="table-grid">
                             <thead>
                                 <tr>
-                                    <th class="col-date">날짜</th>
-                                    <th class="col-manager">담당자</th>
-                                    <th class="col-type">시험구분</th>
-                                    <th class="col-company">의뢰기관(업체)</th>
-                                    <th class="col-site">현장명/지역</th>
-                                    <th class="col-etc">상세내용</th>
+                                    <th class="col-date">날짜</th> 
+                                    <th class="col-etc">제목</th>
                                 </tr>
                             </thead>
                             <tbody id="bizmeka-body-top">
@@ -298,51 +294,87 @@ if (result.data.length === 0) {
 /**
  * 비즈메카 문자열 데이터를 컬럼별로 분리하는 함수 (샘플 규칙 적용)
  */
-function parseBizContent(content) {
-    // 예시: "본원(김T)/현장시험/장재민/갑진종합건설/의정부/생콘..."
-    const parts = content.split('/');
-    return {
-        manager: parts[0] || '-',
-        type: parts[1] || '-',
-        company: parts[3] || parts[2] || '-',
-        site: parts[4] || '-',
-        etc: parts.slice(5).join(' ') || content
-    };
-}
+// function parseBizContent(content) {
+//     // 예시: "본원(김T)/현장시험/장재민/갑진종합건설/의정부/생콘..."
+//     const parts = content.split('/');
+//     return {
+//         manager: parts[0] || '-',
+//         type: parts[1] || '-',
+//         company: parts[3] || parts[2] || '-',
+//         site: parts[4] || '-',
+//         etc: parts.slice(5).join(' ') || content
+//     };
+// }
+
+// function syncBizmeka() {
+//     const year = document.getElementById('search-year').value;
+//     const month = document.getElementById('search-month').value;
+//     const tableBody = document.getElementById('bizmeka-body-top');
+
+//     tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border spinner-border-sm text-primary"></div><br><span class="small">동기화 중...</span></td></tr>';
+
+//     fetch(`/bizmeka-sync/?year=${year}&month=${month}`)
+//         .then(response => response.json())
+//         .then(result => {
+//             if (!result.data || result.data.length === 0) {
+//                 tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">수집된 일정이 없습니다.</td></tr>';
+//             } else {
+//                 let rows = '';
+//                 result.data.forEach(item => {
+//                     // 데이터 파싱 실행
+//                     const info = parseBizContent(item.content);
+//                     rows += `
+//                         <tr>
+//                             <td class="text-center fw-bold text-primary col-date">${item.date || '-'}</td>
+//                             <td class="col-manager text-center">${info.manager}</td>
+//                             <td class="col-type">${info.type}</td>
+//                             <td class="col-company">${info.company}</td>
+//                             <td class="col-site">${info.site}</td>
+//                             <td class="col-etc text-muted">${info.etc}</td>
+//                         </tr>`;
+//                 });
+//                 tableBody.innerHTML = rows;
+//             }
+//         })
+//         .catch(error => {
+//             console.error('Error:', error);
+//             tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-danger">통신 실패 (Django 서버 연결 확인)</td></tr>';
+//         });
+// }
 
 function syncBizmeka() {
     const year = document.getElementById('search-year').value;
     const month = document.getElementById('search-month').value;
     const tableBody = document.getElementById('bizmeka-body-top');
 
-    tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border spinner-border-sm text-primary"></div><br><span class="small">동기화 중...</span></td></tr>';
+    // [수정] colspan을 3으로 맞춤 (날짜, 범주, 제목)
+    tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-5"><div class="spinner-border spinner-border-sm text-primary"></div><br><span class="small">비즈메카 데이터 수집 중...</span></td></tr>';
 
     fetch(`/bizmeka-sync/?year=${year}&month=${month}`)
         .then(response => response.json())
         .then(result => {
             if (!result.data || result.data.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">수집된 일정이 없습니다.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-5 text-muted">수집된 일정이 없습니다.</td></tr>';
             } else {
                 let rows = '';
                 result.data.forEach(item => {
-                    // 데이터 파싱 실행
-                    const info = parseBizContent(item.content);
-                    rows += `
-                        <tr>
-                            <td class="text-center fw-bold text-primary col-date">${item.date || '-'}</td>
-                            <td class="col-manager text-center">${info.manager}</td>
-                            <td class="col-type">${info.type}</td>
-                            <td class="col-company">${info.company}</td>
-                            <td class="col-site">${info.site}</td>
-                            <td class="col-etc text-muted">${info.etc}</td>
-                        </tr>`;
-                });
+                rows += `
+                    <tr>
+                        <td class="text-center fw-bold text-primary col-date" style="width:180px;">
+                            ${item.date || '-'} <br>
+                            <span class="small text-muted" style="font-weight:normal;">${item.time || ''}</span>
+                        </td>
+                        <td class="col-title">
+                            <div class="fw-normal">${item.title || '-'}</div>
+                        </td>
+                    </tr>`;
+            });
                 tableBody.innerHTML = rows;
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-danger">통신 실패 (Django 서버 연결 확인)</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-5 text-danger">통신 실패 (Django 서버 연결 확인)</td></tr>';
         });
 }
 </script>

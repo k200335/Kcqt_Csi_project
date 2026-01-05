@@ -758,24 +758,54 @@ def fetch_combined_data(request):
         elif raw_type == 'req_code': search_type = '의뢰번호'
 
         # 3. MySQL 쿼리 실행
+        # where_clauses = []
+        # params = []
+        # if start_date and end_date:
+        #     where_clauses.append("r.배정일자 BETWEEN %s AND %s")
+        #     params.extend([f"{start_date} 00:00:00", f"{end_date} 23:59:59"])
+        # if team_filter and team_filter != '전체':
+        #     where_clauses.append("r.담당자 LIKE %s")
+        #     params.append(f"%{team_filter}%")
+        # if search_query:
+        #     if search_type == '의뢰번호':
+        #         where_clauses.append("r.의뢰번호 LIKE %s")
+        #         params.append(f"%{search_query}%")
+        #     elif search_type == '의뢰기관명':
+        #         where_clauses.append("r.의뢰기관명 LIKE %s")
+        #         params.append(f"%{search_query}%")
+        #     else:
+        #         where_clauses.append("r.사업명 LIKE %s")
+        #         params.append(f"%{search_query}%")
+        
+        # 대소문자 구분 적용코드
         where_clauses = []
         params = []
         if start_date and end_date:
-            where_clauses.append("r.배정일자 BETWEEN %s AND %s")
-            params.extend([f"{start_date} 00:00:00", f"{end_date} 23:59:59"])
+            # where_clauses.append("r.배정일자 BETWEEN %s AND %s")
+            # params.extend([f"{start_date} 00:00:00", f"{end_date} 23:59:59"])
+            # MSSQL 날짜만 사용할경우
+            # where_clauses.append("CONVERT(VARCHAR(10), r.배정일자, 120) BETWEEN %s AND %s")            
+            # params.extend([start_date, end_date])
+            # MYSQL 날짜만 사용할경우
+            where_clauses.append("DATE(r.배정일자) BETWEEN %s AND %s")    
+            # 파라미터는 시간 없이 날짜만 전달합니다.
+            params.extend([start_date, end_date])
+        
+        # 팀 필터도 대소문자 무시 적용
         if team_filter and team_filter != '전체':
-            where_clauses.append("r.담당자 LIKE %s")
-            params.append(f"%{team_filter}%")
+            where_clauses.append("UPPER(r.담당자) LIKE %s")
+            params.append(f"%{team_filter.upper()}%")
+            
         if search_query:
+            q = f"%{search_query.upper()}%"
             if search_type == '의뢰번호':
-                where_clauses.append("r.의뢰번호 LIKE %s")
-                params.append(f"%{search_query}%")
+                where_clauses.append("UPPER(r.의뢰번호) LIKE %s")
             elif search_type == '의뢰기관명':
-                where_clauses.append("r.의뢰기관명 LIKE %s")
-                params.append(f"%{search_query}%")
+                where_clauses.append("UPPER(r.의뢰기관명) LIKE %s")
             else:
-                where_clauses.append("r.사업명 LIKE %s")
-                params.append(f"%{search_query}%")
+                where_clauses.append("UPPER(r.사업명) LIKE %s")
+            params.append(q)
+
 
         where_sentence = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         mysql_query = f"""
@@ -1408,13 +1438,15 @@ def bizmeka_sync(request):
     driver = None
     try:
         chrome_options = Options()
+        user_data = r"C:\Users\김영준\AppData\Local\Google\Chrome\User Data_Selenium" # 복사한 경로 입력
+        chrome_options.add_argument(f"user-data-dir={user_data}")
         chrome_options.add_argument("--start-maximized")
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
         wait = WebDriverWait(driver, 15)
 
         # 1. 로그인 시도
         driver.get("https://ezportal.bizmeka.com/")
-        driver.find_element(By.ID, "username").send_keys("k200335")
+        # driver.find_element(By.ID, "username").send_keys("k200335")
         driver.find_element(By.ID, "password").send_keys("k*1800*92*" + Keys.ENTER)
         
         # [수동 조작 1] 2차 인증 대기
@@ -1471,57 +1503,114 @@ def bizmeka_sync(request):
         print(">>> 수집을 시작합니다. 브라우저를 만지지 마세요.")
 
         # 3. 데이터 수집 로직 (무한 루프 방지 및 페이징)
+        # 3. 데이터 수집 로직
+        # 3. 데이터 수집 로직 (image_4b4a2d 구조 반영)
+        # 3. 데이터 수집 로직 (페이징 추가 버전)
         final_list = []
-        last_collected_count = -1
         
-        while True:
-            rows = driver.find_elements(By.CSS_SELECTOR, "table.listview tbody tr")
-            if not rows or "데이터가 없습니다" in rows[0].text:
-                print(">>> 표시할 데이터가 없습니다.")
-                break
-
-            # 현재 페이지 데이터 파싱
-            for row in rows:
-                try:
-                    tds = row.find_elements(By.TAG_NAME, "td")
-                    if len(tds) < 3: continue
-                    
-                    date_val = tds[0].text.strip()[:10]
-                    content_val = row.find_element(By.CSS_SELECTOR, "a.fc-title").text.strip()
-                    
-                    final_list.append({"date": date_val, "content": content_val})
-                except: continue
-
-            print(f">>> 현재까지 {len(final_list)}건 수집됨...")
-
-            # 수집 개수가 변하지 않으면(마지막 페이지 도달) 탈출
-            if len(final_list) == last_collected_count:
-                print(">>> 더 이상 새로운 데이터가 없어 수집을 종료합니다.")
-                break
-            last_collected_count = len(final_list)
-
-            # 페이징: 다음 페이지 클릭
-            try:
-                # active 클래스 다음의 숫자 버튼 찾기
-                next_page_btn = driver.find_elements(By.CSS_SELECTOR, "ul.pagination li.active + li a")
+        try:
+            while True:
+                # [대기] 현재 페이지의 테이블이 완전히 나타날 때까지 대기
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".content-list table.listview tbody tr")))
                 
-                if next_page_btn and next_page_btn[0].text.isdigit():
-                    print(f">>> 다음 페이지({next_page_btn[0].text})로 이동...")
-                    driver.execute_script("arguments[0].click();", next_page_btn[0])
-                    time.sleep(3) # 로딩 대기
-                else:
-                    print(">>> 마지막 페이지입니다.")
-                    break
-            except Exception as e:
-                print(f">>> 페이징 종료: {e}")
-                break
+                # 1) 현재 페이지 데이터 수집
+                current_rows = driver.find_elements(By.CSS_SELECTOR, ".content-list table.listview tbody tr")
+                print(f">>> 현재 페이지에서 {len(current_rows)}건을 수집합니다.")
 
-        print(f">>> 최종 수집 완료: 총 {len(final_list)}건")
-        return JsonResponse({"status": "success", "total_count": len(final_list), "data": final_list})
+                for i in range(len(current_rows)):
+                    try:
+                        # Stale 에러 방지용 재검색
+                        rows_refresh = driver.find_elements(By.CSS_SELECTOR, ".content-list table.listview tbody tr")
+                        row = rows_refresh[i]
+                        tds = row.find_elements(By.TAG_NAME, "td")
 
-    except Exception as e:
-        print(traceback.format_exc())
-        return JsonResponse({"status": "error", "message": str(e)})
+                        if len(tds) >= 3:
+                            time_text = tds[0].text.strip()
+                            # 제목 추출: a.fc-title의 title 속성 활용
+                            try:
+                                title_el = tds[2].find_element(By.CSS_SELECTOR, "a.fc-title")
+                                title_val = title_el.get_attribute("title") or title_el.text.strip()
+                            except:
+                                title_val = tds[2].text.strip()
+
+                            final_list.append({
+                                "date": time_text[:10],
+                                "time": time_text[11:],
+                                "title": title_val
+                            })
+                    except Exception:
+                        continue
+
+                # 2) 다음 페이지(>) 버튼 클릭 처리
+                try:
+                    # 1. 사진에 보이는 '>' 아이콘이 들어있는 a 태그를 직접 타겟팅합니다.
+                    # .pagination-wrap 내부의 ul.pagination에서 > 아이콘을 가진 링크를 찾음
+                    next_btn = driver.find_element(By.CSS_SELECTOR, "ul.pagination li a i.fa-angle-right").find_element(By.XPATH, "..")
+                    
+                    # 2. 버튼의 부모(li)가 'disabled'인지 확인하여 마지막 페이지 판별
+                    parent_li = next_btn.find_element(By.XPATH, "./..")
+                    is_disabled = "disabled" in parent_li.get_attribute("class")
+                    
+                    if is_disabled:
+                        print(">>> [확인] 마지막 페이지(disabled)입니다. 수집을 마칩니다.")
+                        break
+                    
+                    # 3. 클릭 전 화면에 보이지 않을 수 있으므로 스크롤 후 클릭
+                    print(">>> 다음 페이지(>) 버튼 클릭 시도...")
+                    driver.execute_script("arguments[0].scrollIntoView(true);", next_btn)
+                    time.sleep(1)
+                    driver.execute_script("arguments[0].click();", next_btn)
+                    
+                    # 4. 페이지 전환 후 테이블이 새로 고쳐질 때까지 충분히 대기
+                    time.sleep(4) 
+                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".content-list table.listview tbody tr")))
+                    
+                except Exception as e:
+                    # 버튼을 못 찾거나 클릭 실패 시 번호(1,2,3...) 중 현재 'active' 다음 번호를 찾는 백업 로직
+                    try:
+                    # 1. 현재 활성화된 페이지 번호 요소 찾기
+                        active_li = driver.find_element(By.CSS_SELECTOR, "ul.pagination li.active")
+                        current_num = active_li.text.strip()
+                    
+                    # 2. 바로 옆에 클릭 가능한 '다음 숫자'나 '화살표'가 있는지 확인
+                        try:
+                            # 현재 active된 li의 바로 다음 li 요소를 가져옴
+                            next_li = active_li.find_element(By.XPATH, "./following-sibling::li")
+                            
+                            # [핵심] 다음 li가 'disabled' 클래스를 가지고 있다면 더 이상 갈 곳이 없는 것임
+                            if "disabled" in next_li.get_attribute("class"):
+                                print(f">>> [확인] {current_num}페이지가 최종 마지막입니다. 수집을 마칩니다.")
+                                break
+                            
+                            # 다음 li 안에 있는 클릭 가능한 링크(a)를 찾음
+                            next_link = next_li.find_element(By.TAG_NAME, "a")
+                            
+                            # 클릭 전 화면 중앙으로 스크롤
+                            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_link)
+                            time.sleep(1)
+                            
+                            # 다음 페이지 클릭 (숫자 11 혹은 화살표 > 버튼 모두 처리됨)
+                            print(f">>> {current_num}페이지 수집 완료. 다음으로 이동합니다...")
+                            driver.execute_script("arguments[0].click();", next_link)
+                            
+                            # 3. 페이지 전환 및 테이블 로딩 대기
+                            time.sleep(2) 
+                            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".content-list table.listview tbody tr")))
+                            
+                        except Exception as e:
+                            # 다음 형제 li 자체가 아예 없는 경우 (완전한 끝)
+                            print(f">>> [종료] 더 이상 이동할 페이지 요소가 없습니다.")
+                            break
+
+                    except Exception as e:
+                        print(f">>> 페이징 처리 중 오류 발생: {e}")
+                        break
+
+            print(f">>> [최종 완료] 총 {len(final_list)}건 수집됨")
+            return JsonResponse({"status": "success", "total_count": len(final_list), "data": final_list})
+
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)})
     finally:
         if driver:
             driver.quit()
