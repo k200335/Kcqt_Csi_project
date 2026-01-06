@@ -63,4 +63,6 @@ urlpatterns = [
     path('get_estimate_detail/', views.get_estimate_detail, name='get_estimate_detail'),
     path('field_payment/', views.field_payment_view, name='field_payment'),
     path('bizmeka-sync/', views.bizmeka_sync, name='bizmeka_sync'),
+    # 비즈메카 QT DB 불러오는코드
+    path('get_qt_db_data/', views.get_qt_db_data, name='get_qt_db_data'),
 ]

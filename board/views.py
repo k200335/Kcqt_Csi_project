@@ -1507,6 +1507,7 @@ def bizmeka_sync(request):
         # 3. 데이터 수집 로직 (image_4b4a2d 구조 반영)
         # 3. 데이터 수집 로직 (페이징 추가 버전)
         final_list = []
+        last_page_data_sample = None  # 이전 페이지 데이터를 저장할 변수
         
         try:
             while True:
@@ -1515,95 +1516,77 @@ def bizmeka_sync(request):
                 
                 # 1) 현재 페이지 데이터 수집
                 current_rows = driver.find_elements(By.CSS_SELECTOR, ".content-list table.listview tbody tr")
+                page_data_contents = [] # 중복 체크를 위한 현재 페이지 내용 요약
+                
                 print(f">>> 현재 페이지에서 {len(current_rows)}건을 수집합니다.")
 
                 for i in range(len(current_rows)):
                     try:
-                        # Stale 에러 방지용 재검색
                         rows_refresh = driver.find_elements(By.CSS_SELECTOR, ".content-list table.listview tbody tr")
                         row = rows_refresh[i]
                         tds = row.find_elements(By.TAG_NAME, "td")
 
                         if len(tds) >= 3:
                             time_text = tds[0].text.strip()
-                            # 제목 추출: a.fc-title의 title 속성 활용
+                            # [추가] 범주 데이터 추출 (두 번째 td)
+                            category_val = tds[1].text.strip() 
+                            
                             try:
                                 title_el = tds[2].find_element(By.CSS_SELECTOR, "a.fc-title")
                                 title_val = title_el.get_attribute("title") or title_el.text.strip()
                             except:
                                 title_val = tds[2].text.strip()
 
-                            final_list.append({
-                                "date": time_text[:10],
-                                "time": time_text[11:],
-                                "title": title_val
-                            })
+                            item = {
+                                "date": time_text[:10],    # 날짜
+                                "category": category_val,  # 범주 [추가]
+                                "title": title_val         # 제목
+                            }
+                            final_list.append(item)
+                            # 비교용 샘플에 범주 추가하여 중복 체크 정확도 향상
+                            page_data_contents.append(f"{item['date']}_{item['category']}_{item['title']}") 
                     except Exception:
                         continue
 
+                # ---------------------------------------------------------
+                # [핵심 추가] 이전 페이지와 데이터가 똑같으면 즉시 종료
+                # ---------------------------------------------------------
+                current_page_sample = "|".join(page_data_contents)
+                if last_page_data_sample == current_page_sample:
+                    print(">>> [확인] 이전 페이지와 데이터가 동일합니다. 루프를 종료합니다.")
+                    # 마지막에 중복 추가된 데이터는 제거 (선택 사항)
+                    for _ in range(len(current_rows)):
+                        if final_list: final_list.pop()
+                    break
+                
+                last_page_data_sample = current_page_sample # 현재 데이터를 이전 데이터로 저장
+                # ---------------------------------------------------------
+
                 # 2) 다음 페이지(>) 버튼 클릭 처리
                 try:
-                    # 1. 사진에 보이는 '>' 아이콘이 들어있는 a 태그를 직접 타겟팅합니다.
-                    # .pagination-wrap 내부의 ul.pagination에서 > 아이콘을 가진 링크를 찾음
                     next_btn = driver.find_element(By.CSS_SELECTOR, "ul.pagination li a i.fa-angle-right").find_element(By.XPATH, "..")
-                    
-                    # 2. 버튼의 부모(li)가 'disabled'인지 확인하여 마지막 페이지 판별
                     parent_li = next_btn.find_element(By.XPATH, "./..")
-                    is_disabled = "disabled" in parent_li.get_attribute("class")
                     
-                    if is_disabled:
-                        print(">>> [확인] 마지막 페이지(disabled)입니다. 수집을 마칩니다.")
+                    if "disabled" in parent_li.get_attribute("class"):
+                        print(">>> [확인] 버튼이 disabled 상태입니다. 종료합니다.")
                         break
                     
-                    # 3. 클릭 전 화면에 보이지 않을 수 있으므로 스크롤 후 클릭
-                    print(">>> 다음 페이지(>) 버튼 클릭 시도...")
-                    driver.execute_script("arguments[0].scrollIntoView(true);", next_btn)
-                    time.sleep(1)
                     driver.execute_script("arguments[0].click();", next_btn)
-                    
-                    # 4. 페이지 전환 후 테이블이 새로 고쳐질 때까지 충분히 대기
-                    time.sleep(4) 
-                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".content-list table.listview tbody tr")))
+                    time.sleep(5) # 페이지 전환 대기 시간 충분히 확보
                     
                 except Exception as e:
-                    # 버튼을 못 찾거나 클릭 실패 시 번호(1,2,3...) 중 현재 'active' 다음 번호를 찾는 백업 로직
+                    # 백업 로직: 숫자 pagination 처리
                     try:
-                    # 1. 현재 활성화된 페이지 번호 요소 찾기
                         active_li = driver.find_element(By.CSS_SELECTOR, "ul.pagination li.active")
-                        current_num = active_li.text.strip()
-                    
-                    # 2. 바로 옆에 클릭 가능한 '다음 숫자'나 '화살표'가 있는지 확인
-                        try:
-                            # 현재 active된 li의 바로 다음 li 요소를 가져옴
-                            next_li = active_li.find_element(By.XPATH, "./following-sibling::li")
-                            
-                            # [핵심] 다음 li가 'disabled' 클래스를 가지고 있다면 더 이상 갈 곳이 없는 것임
-                            if "disabled" in next_li.get_attribute("class"):
-                                print(f">>> [확인] {current_num}페이지가 최종 마지막입니다. 수집을 마칩니다.")
-                                break
-                            
-                            # 다음 li 안에 있는 클릭 가능한 링크(a)를 찾음
-                            next_link = next_li.find_element(By.TAG_NAME, "a")
-                            
-                            # 클릭 전 화면 중앙으로 스크롤
-                            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_link)
-                            time.sleep(1)
-                            
-                            # 다음 페이지 클릭 (숫자 11 혹은 화살표 > 버튼 모두 처리됨)
-                            print(f">>> {current_num}페이지 수집 완료. 다음으로 이동합니다...")
-                            driver.execute_script("arguments[0].click();", next_link)
-                            
-                            # 3. 페이지 전환 및 테이블 로딩 대기
-                            time.sleep(2) 
-                            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".content-list table.listview tbody tr")))
-                            
-                        except Exception as e:
-                            # 다음 형제 li 자체가 아예 없는 경우 (완전한 끝)
-                            print(f">>> [종료] 더 이상 이동할 페이지 요소가 없습니다.")
+                        next_li = active_li.find_element(By.XPATH, "./following-sibling::li")
+                        
+                        if "disabled" in next_li.get_attribute("class"):
                             break
-
-                    except Exception as e:
-                        print(f">>> 페이징 처리 중 오류 발생: {e}")
+                            
+                        next_link = next_li.find_element(By.TAG_NAME, "a")
+                        driver.execute_script("arguments[0].click();", next_link)
+                        time.sleep(5)
+                    except:
                         break
 
             print(f">>> [최종 완료] 총 {len(final_list)}건 수집됨")
@@ -1615,3 +1598,65 @@ def bizmeka_sync(request):
         if driver:
             driver.quit()
 
+#여기서부터 비즈메카 QT데이터불러오기
+def get_qt_db_data(request):
+    # 1. 파라미터 수신
+    builder = request.GET.get('builder', '').strip()
+    start_date = request.GET.get('startDate', '')
+    end_date = request.GET.get('endDate', '')
+
+    print("\n" + "="*60)
+    print(f"[검색요청] 시공사: {builder}, 기간: {start_date} ~ {end_date}")
+
+    # 2. 쿼리 작성 (%s 기호 사용)
+    # 주신 참고 코드의 JOIN 구조와 ISNULL 방식을 유지합니다.
+    mssql_query = """
+        SELECT 
+            ISNULL(c.sales, '') as sales, 
+            ISNULL(c.receipt_code, '') as receipt_code, 
+            ISNULL(c.field_tester, '') as field_tester, 
+            ISNULL(CONVERT(VARCHAR(10), b.getdate, 120), '') as getdate, 
+            ISNULL(CONVERT(VARCHAR(10), c.request_day, 120), '') as request_day,
+            ISNULL(a.builder, '') as builder, 
+            ISNULL(a.construction, '') as construction, 
+            ISNULL(b.specimen, '') as specimen, 
+            ISNULL(b.specimen_qty, 0) as specimen_qty,
+            ISNULL(d.supply_value, 0) as supply_value, 
+            ISNULL(d.vat, 0) as vat, 
+            ISNULL(a.cm_name, '') as cm_name, 
+            ISNULL(a.qm_name, '') as qm_name
+        FROM dbo.Receipt c
+        LEFT JOIN dbo.Customer a      ON c.receipt_code = a.receipt_code
+        LEFT JOIN dbo.Specimen_info b ON c.receipt_code = b.receipt_code
+        LEFT JOIN dbo.Estimate d      ON c.receipt_code = d.receipt_code
+        WHERE c.request_day BETWEEN %s AND %s
+    """
+    
+    # 3. 파라미터 리스트 (주신 코드의 chunk 방식과 동일하게 리스트로 전달)
+    query_params = [start_date, end_date]
+
+    if builder:
+        mssql_query += " AND a.builder LIKE %s"
+        query_params.append(f"%{builder}%")
+
+    mssql_query += " ORDER BY c.request_day DESC"
+
+    try:
+        with connections['mssql'].cursor() as mssql_cursor:
+            mssql_cursor.execute(mssql_query, query_params)
+            
+            m_cols = [col[0] for col in mssql_cursor.description]
+            rows = mssql_cursor.fetchall()
+            
+            results = [dict(zip(m_cols, m_row)) for m_row in rows]
+            
+            # 터미널 확인용 로그
+            print(f"[조회결과] 총 {len(results)}건 데이터 추출 완료")
+            if results:
+                print(f"[필드 체크] 첫 번째 데이터: {results[0]}")
+
+        return JsonResponse({'status': 'success', 'data': results})
+
+    except Exception as e:
+        print(f"[에러발생] {str(e)}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

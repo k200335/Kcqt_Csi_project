@@ -1,160 +1,5 @@
-<!-- <!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>현장시험 통합 관리 시스템</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body, html { height: 100%; margin: 0; overflow: hidden; background-color: #f4f7f6; }
-        .main-wrapper { height: calc(100vh - 56px); display: flex; flex-direction: column; padding: 10px; }
-        
-        /* 레이아웃 높이 설정 */
-        .top-row { height: 45%; min-height: 350px; }
-        .bottom-row { height: 55%; flex-grow: 1; margin-top: 10px; }
-        
-        .card { height: 100%; display: flex; flex-direction: column; border: 1px solid rgba(0,0,0,0.125); box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); }
-        .card-body { flex: 1; overflow: hidden; padding: 10px; display: flex; flex-direction: column; }
-        
-        /* 스크롤 가능한 리스트 영역 */
-        .list-container { flex: 1; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; }
-        .table-sticky thead { position: sticky; top: 0; background: #f8f9fa; z-index: 1; }
-    </style>
-</head>
-<body>
-
-<div class="d-flex justify-content-end align-items-center px-3 py-2 bg-white border-bottom">
-    <span class="me-3 small text-secondary"><i class="fas fa-user-circle"></i> <strong>admin_home</strong>님 환영합니다.</span>
-    <button class="btn btn-outline-danger btn-sm px-3">로그아웃</button>
-</div>
-
-<div class="main-wrapper">
-    <div class="row g-2 top-row">
-        <div class="col-md-4">
-            <div class="card border-primary">
-                <div class="card-header bg-primary text-white py-1">
-                    <h6 class="mb-0 small"><i class="fas fa-sync-alt"></i> 비즈메카 데이터 동기화</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row g-1 mb-2">
-                        <div class="col-4">
-                            <select id="search-year" class="form-select form-select-sm">
-                                <option value="2025">2025년</option>
-                                <option value="2026">2026년</option>
-                            </select>
-                        </div>
-                        <div class="col-4">
-                            <select id="search-month" class="form-select form-select-sm">
-                                {% for m in month_list %}<option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}월</option>{% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-4">
-                            <button onclick="syncBizmeka()" class="btn btn-success btn-sm w-100 fw-bold">불러오기</button>
-                        </div>
-                    </div>
-
-                    <div class="list-container">
-                        <table class="table table-sm table-hover table-sticky mb-0 small">
-                            <thead class="table-light">
-                                <tr class="text-center">
-                                    <th style="width: 35%;">날짜</th>
-                                    <th>일정 상세내용</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bizmeka-body-top">
-                                <tr><td colspan="2" class="text-center py-5 text-muted">불러오기 버튼을 눌러주세요.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-8">
-            <div class="card border-info">
-                <div class="card-header bg-info text-white py-1">
-                    <h6 class="mb-0 small"><i class="fas fa-database"></i> QT DB 연동 작업</h6>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small text-center mt-4">여기에 QT에서 DB를 불러와 처리하는 로직을 배치하세요.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-2 bottom-row">
-        <div class="col-md-4">
-            <div class="card shadow-sm border-secondary border-opacity-25">
-                <div class="card-body d-flex align-items-center justify-content-center">
-                    <span class="text-muted small text-center">비즈메카 추가 작업 공간<br>(현재 비어있음)</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card shadow-sm border-secondary border-opacity-25">
-                <div class="card-body d-flex align-items-center justify-content-center">
-                    <span class="text-muted small">하단 중간 (매칭 데이터 작업)</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card shadow-sm border-secondary border-opacity-25">
-                <div class="card-body d-flex align-items-center justify-content-center">
-                    <span class="text-muted small">하단 오른쪽 (최종 결과)</span>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-<script>
-function syncBizmeka() {
-    const year = document.getElementById('search-year').value;
-    const month = document.getElementById('search-month').value;
-    const tableBody = document.getElementById('bizmeka-body-top');
-
-    // 1. 로딩 상태 표시 (좌측 상단 리스트에 표시)
-    tableBody.innerHTML = '<tr><td colspan="2" class="text-center py-5"><div class="spinner-border spinner-border-sm text-primary" role="status"></div><br><span class="small">데이터 수집 중...</span></td></tr>';
-
-    // 2. 서버(views.py) 호출
-    fetch(`/bizmeka-sync/?year=${year}&month=${month}`)
-        .then(response => response.json())
-        .then(result => {
-            // field_payment.html의 syncBizmeka 함수 내부 수정
-if (result.data.length === 0) {
-    tableBody.innerHTML = '<tr><td colspan="2" class="text-center py-5 text-muted">수집된 일정이 없습니다.</td></tr>';
-} else {
-    // 1. 먼저 테이블을 비웁니다.
-    tableBody.innerHTML = ''; 
-    
-    // 2. 데이터를 누적해서 추가합니다.
-    let rows = ''; // 임시 변수에 모든 행을 담습니다.
-    result.data.forEach(item => {
-        rows += `<tr>
-                    <td class="text-center fw-bold text-primary">${item.date || '-'}</td>
-                    <td>${item.content}</td>
-                 </tr>`;
-    });
-    
-    // 3. 한 번에 HTML에 집어넣습니다. (성능상 더 좋음)
-    tableBody.innerHTML = rows; 
-}
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('서버 통신에 실패했습니다.');
-        });
-}
-</script>
-
-</body>
-</html> -->
-
-<!-- 여기서부터 새롭게 시작함 -->
+{% extends "base.html" %}
+{% block content %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -162,54 +7,98 @@ if (result.data.length === 0) {
     <title>현장시험 통합 관리 시스템</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        /* 화면 고정 및 스크롤 제거 */
-        body, html { height: 100%; margin: 0; overflow: hidden; background-color: #f4f7f6; font-family: 'Pretendard', sans-serif; }
-        
-        /* 메인 레이아웃 설정 */
-        .main-wrapper { height: calc(100vh - 45px); display: flex; flex-direction: column; padding: 10px; gap: 10px; }
-        
-        /* 상단(45%) / 하단(55%) 비율 고정 */
-        .top-row { height: 45%; display: flex; gap: 10px; }
-        .bottom-row { height: 55%; display: flex; gap: 10px; }
-        
-        .card { height: 100%; display: flex; flex-direction: column; border: 1px solid rgba(0,0,0,0.125); border-radius: 8px; overflow: hidden; }
-        .card-header { padding: 6px 12px; font-weight: bold; }
-        .card-body { flex: 1; overflow: hidden; padding: 8px; display: flex; flex-direction: column; background: white; }
-        
-        /* 엑셀 스타일 데이터 그리드 */
-        .grid-container { flex: 1; overflow: auto; border: 1px solid #dee2e6; position: relative; }
-        .table-grid { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.82rem; table-layout: fixed; }
-        .table-grid thead { position: sticky; top: 0; z-index: 10; background: #f8f9fa; }
-        .table-grid th { 
-            border-bottom: 2px solid #dee2e6; border-right: 1px solid #dee2e6; 
-            padding: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .table-grid td { 
-            border-bottom: 1px solid #eee; border-right: 1px solid #eee; 
-            padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-        }
-        .table-grid tr:hover { background-color: #f1f8ff; cursor: pointer; }
-        
-        /* 컬럼별 너비 지정 */
-        .col-date { width: 100px; }
-        .col-manager { width: 70px; }
-        .col-type { width: 100px; }
-        .col-company { width: 150px; }
-        .col-site { width: 120px; }
-        .col-etc { width: auto; min-width: 200px; }
+    
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-        .spinner-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #666; }
-    </style>
+    <style>
+    /* 1. 기본 배경 및 스크롤 방지 */
+    body, html { 
+        height: 100%; 
+        margin: 0; 
+        padding: 0; 
+        overflow: hidden; 
+        background-color: #f4f7f6; 
+        font-family: 'Pretendard', sans-serif; 
+    }
+    
+    /* 2. 메인 래퍼: 높이를 % 기반으로 설정하여 하단 잘림 방지 */
+    .main-wrapper { 
+        position: absolute;
+        top: 45px; /* 헤더 높이만큼 아래로 */
+        left: 0;
+        right: 0;
+        bottom: 0; /* 화면 끝까지 꽉 채움 */
+        display: flex; 
+        flex-direction: column; 
+        padding: 8px; 
+        gap: 8px; 
+        box-sizing: border-box;
+    }
+    
+    /* 3. 행(Row) 설정: flex-basis를 사용하여 정확한 등분 */
+    .top-row { 
+        flex: 1 1 50%; /* 상단 절반 */
+        display: flex; 
+        gap: 8px; 
+        min-height: 0; 
+    }
+    
+    .bottom-row { 
+        flex: 1 1 50%; /* 하단 절반 */
+        display: flex; 
+        gap: 8px; 
+        min-height: 0;
+        padding-bottom: 5px; /* 최하단 선이 가려지지 않게 안전장치 */
+    }
+    
+    /* 4. 카드 및 그리드 고정 */
+    .card { 
+        height: 100%; 
+        display: flex; 
+        flex-direction: column; 
+        border: 1px solid rgba(0,0,0,0.125); 
+        border-radius: 8px; 
+        overflow: hidden;
+        background: #fff;
+    }
+    
+    .card-header { 
+        padding: 4px 12px; 
+        font-weight: bold; 
+        flex-shrink: 0; 
+        font-size: 0.85rem; 
+        min-height: 30px;
+        display: flex;
+        align-items: center;
+    } 
+    
+    .card-body { 
+        flex: 1; 
+        overflow: hidden; /* 중요: 바디가 넘치지 않게 */
+        padding: 0; 
+        position: relative; 
+    }
+
+    #bizmekaGrid { width: 100%; height: 100%; }
+
+    /* AG-Grid 높이 최적화 */
+    .ag-header { min-height: 35px !important; height: 35px !important; }
+    .ag-theme-quartz { --ag-grid-size: 4px; --ag-list-item-height: 25px; } /* 행 간격 축소 */
+</style>
 </head>
 <body>
 
 <div class="d-flex justify-content-between align-items-center px-3 py-1 bg-white border-bottom" style="height: 45px;">
     <h6 class="mb-0 fw-bold text-primary"><i class="fas fa-microscope"></i> 현장시험 관리 v2.0</h6>
-    <div>
-        <span class="me-3 small text-secondary"><i class="fas fa-user-circle"></i> <strong>admin_home</strong>님</span>
-        <button class="btn btn-outline-danger btn-sm py-0 px-2">로그아웃</button>
-    </div>
+    <button type="button" 
+            class="btn btn-sm btn-outline-secondary me-2 d-flex align-items-center" 
+            onclick="location.href='/'" 
+            style="cursor: pointer;">
+        <i class="fa-solid fa-house me-1"></i> 홈
+    </button>
 </div>
 
 <div class="main-wrapper">
@@ -217,166 +106,361 @@ if (result.data.length === 0) {
         <div style="flex: 4;">
             <div class="card border-primary">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <span class="small"><i class="fas fa-sync-alt"></i> 비즈메카 데이터 동기화</span>
-                    <div class="d-flex gap-1">
-                        <select id="search-year" class="form-select form-select-sm py-0" style="width: 90px;">
-                            <option value="2025">2025년</option>
-                            <option value="2026" selected>2026년</option>
+                    <span class="small"><i class="fas fa-sync-alt"></i> 비즈메카</span>
+                    <div class="header-controls d-flex gap-1 align-items-center">
+                        <select id="search-year" class="form-select form-select-sm py-0" style="width: 85px;">
+                            <option value="2025">2025년</option><option value="2026" selected>2026년</option>
                         </select>
-                        <select id="search-month" class="form-select form-select-sm py-0" style="width: 70px;">
-                            <option value="1">1월</option><option value="2">2월</option><option value="12">12월</option>
+                        <select id="search-month" class="form-select form-select-sm py-0" style="width: 65px;">
+                            <option value="1">1월</option><option value="2">2월</option>
                         </select>
-                        <button onclick="syncBizmeka()" class="btn btn-light btn-sm py-0 fw-bold">불러오기</button>
+                        <button onclick="syncBizmeka()" class="btn btn-light btn-sm py-0 fw-bold">불러오기</button>                        
+                        <div class="vr mx-1" style="height: 20px; color: white;"></div> 
+                        <button onclick="deleteSelected()" class="btn btn-danger btn-sm py-0">삭제</button>
+                        <button onclick="downloadExcel()" class="btn btn-success btn-sm py-0">엑셀다운로드</button>
+                        <button onclick="uploadExcel()" class="btn btn-warning btn-sm py-0">엑셀가져오기</button>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="grid-container">
-                        <table class="table-grid">
-                            <thead>
-                                <tr>
-                                    <th class="col-date">날짜</th> 
-                                    <th class="col-etc">제목</th>
-                                </tr>
-                            </thead>
-                            <tbody id="bizmeka-body-top">
-                                <tr><td colspan="6" class="text-center py-5 text-muted">불러오기 버튼을 눌러주세요.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <div id="bizmekaGrid" class="ag-theme-quartz"></div>
                 </div>
             </div>
         </div>
 
         <div style="flex: 6;">
             <div class="card border-info">
-                <div class="card-header bg-info text-white">
-                    <span class="small"><i class="fas fa-database"></i> QT DB 매칭 대기</span>
-                </div>
-                <div class="card-body">
-                    <div class="spinner-container">
-                        <i class="fas fa-long-arrow-alt-left fa-2x mb-2 text-info opacity-50"></i>
-                        <p class="small text-center text-muted">왼쪽 리스트에서 항목을 선택하거나<br>데이터를 불러와주세요.</p>
+                <div class="card-header bg-info text-white d-flex align-items-center py-1 px-2" style="height: 35px;">
+                    <span class="small fw-bold me-auto" style="min-width: 120px;">
+                        <i class="fas fa-database"></i> QT DB 매칭 대기
+                    </span>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="small">기간:</span>
+                        <input type="date" id="db_startDate" class="form-control form-control-sm" style="width: 130px;">
+                        <span class="small">~</span>
+                        <input type="date" id="db_endDate" class="form-control form-control-sm" style="width: 130px;">
+
+                        <span class="small ms-2">시공사:</span>
+                        <input type="text" id="db_builderSearch" class="form-control form-control-sm" style="width: 150px;" placeholder="시공사 입력">
+
+                        <button type="button" class="btn btn-warning btn-sm fw-bold px-3" onclick="onDbSearch()" style="cursor: pointer;">
+                            <i class="fas fa-search"></i> 조회
+                        </button>
                     </div>
                 </div>
+                
+                <div class="card-body" style="height: 500px; padding: 0; position: relative;">
+                    <div id="dbGrid" class="ag-theme-quartz" style="width: 100%; height: 100%;"></div>
+                </div>
+                
             </div>
         </div>
     </div>
 
     <div class="bottom-row">
-        <div style="flex: 1;">
-            <div class="card shadow-sm border-secondary border-opacity-25">
-                <div class="card-header small bg-light text-secondary">비즈메카 상세 분석</div>
-                <div class="card-body d-flex align-items-center justify-content-center">
-                    <span class="text-muted small">데이터 파싱 결과 영역</span>
-                </div>
-            </div>
-        </div>
-        <div style="flex: 1;">
-            <div class="card shadow-sm border-secondary border-opacity-25">
-                <div class="card-header small bg-light text-secondary">매칭 데이터 작업</div>
-                <div class="card-body d-flex align-items-center justify-content-center">
-                    <span class="text-muted small">DB Update 대기</span>
-                </div>
-            </div>
-        </div>
-        <div style="flex: 1;">
-            <div class="card shadow-sm border-secondary border-opacity-25">
-                <div class="card-header small bg-light text-secondary">최종 결과</div>
-                <div class="card-body d-flex align-items-center justify-content-center">
-                    <span class="text-muted small">로그 및 전송 결과</span>
-                </div>
-            </div>
-        </div>
+        <div style="flex: 1;"><div class="card shadow-sm border-secondary border-opacity-25"><div class="card-header small bg-light text-secondary">비즈메카 상세 분석</div><div class="card-body"></div></div></div>
+        <div style="flex: 1;"><div class="card shadow-sm border-secondary border-opacity-25"><div class="card-header small bg-light text-secondary">매칭 데이터 작업</div><div class="card-body"></div></div></div>
+        <div style="flex: 1;"><div class="card shadow-sm border-secondary border-opacity-25"><div class="card-header small bg-light text-secondary">최종 결과</div><div class="card-body"></div></div></div>
     </div>
 </div>
 
 <script>
-/**
- * 비즈메카 문자열 데이터를 컬럼별로 분리하는 함수 (샘플 규칙 적용)
- */
-// function parseBizContent(content) {
-//     // 예시: "본원(김T)/현장시험/장재민/갑진종합건설/의정부/생콘..."
-//     const parts = content.split('/');
-//     return {
-//         manager: parts[0] || '-',
-//         type: parts[1] || '-',
-//         company: parts[3] || parts[2] || '-',
-//         site: parts[4] || '-',
-//         etc: parts.slice(5).join(' ') || content
-//     };
-// }
+// [그리드 정의] 컬럼 순서 고정: 체크박스 -> 날짜 -> 제목
+const columnDefs = [
+    { 
+        headerName: "", 
+        width: 50, 
+        checkboxSelection: true, 
+        headerCheckboxSelection: true, 
+        pinned: 'left', 
+        lockPosition: 'left' // [추가] 사용자가 끌어서 순서를 바꾸지 못하게 고정
+    },
+    { 
+        headerName: "날짜",
+        field: "date",      // 백엔드에서 주는 키 값 (중요!) 
+        width: 100, 
+        pinned: 'left', 
+        lockPosition: 'left' // [추가] 날짜 위치 고정
+    },
+    { 
+        headerName: "범주", 
+        field: "category",  // 백엔드의 item["category"]와 매칭 [추가]
+        width: 120,
+        cellClass: 'text-center'
+    },
+    { 
+        headerName: "제목",
+        field: "title",     // 백엔드에서 주는 키 값 (중요!) 
+        // flex: 1, 
+        // pinned: 'left' 
+        width: 700, // flex를 빼고 충분히 넓은 값을 줍니다.
+        filter: 'agTextColumnFilter',
+        // 내용이 길면 말줄임표(...) 표시
+        cellStyle: { 'text-overflow': 'ellipsis', 'white-space': 'nowrap', 'overflow': 'hidden' }
+    }
+];
 
-// function syncBizmeka() {
-//     const year = document.getElementById('search-year').value;
-//     const month = document.getElementById('search-month').value;
-//     const tableBody = document.getElementById('bizmeka-body-top');
+let gridApi;
 
-//     tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border spinner-border-sm text-primary"></div><br><span class="small">동기화 중...</span></td></tr>';
+const gridOptions = {
+    columnDefs: columnDefs,
+    defaultColDef: { 
+        sortable: true, 
+        filter: true,           
+        floatingFilter: false,
+        resizable: true
+    },
+    suppressMovableColumns: true,
+    rowSelection: 'multiple',
+    headerHeight: 30,
+    rowHeight: 35,
+    rowData: [],
 
-//     fetch(`/bizmeka-sync/?year=${year}&month=${month}`)
-//         .then(response => response.json())
-//         .then(result => {
-//             if (!result.data || result.data.length === 0) {
-//                 tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">수집된 일정이 없습니다.</td></tr>';
-//             } else {
-//                 let rows = '';
-//                 result.data.forEach(item => {
-//                     // 데이터 파싱 실행
-//                     const info = parseBizContent(item.content);
-//                     rows += `
-//                         <tr>
-//                             <td class="text-center fw-bold text-primary col-date">${item.date || '-'}</td>
-//                             <td class="col-manager text-center">${info.manager}</td>
-//                             <td class="col-type">${info.type}</td>
-//                             <td class="col-company">${info.company}</td>
-//                             <td class="col-site">${info.site}</td>
-//                             <td class="col-etc text-muted">${info.etc}</td>
-//                         </tr>`;
-//                 });
-//                 tableBody.innerHTML = rows;
-//             }
-//         })
-//         .catch(error => {
-//             console.error('Error:', error);
-//             tableBody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-danger">통신 실패 (Django 서버 연결 확인)</td></tr>';
-//         });
-// }
+    // [핵심 추가] 셀을 클릭했을 때 실행되는 함수
+    onCellClicked: (params) => {
+        // 1. 클릭한 컬럼이 '제목(title)'인지 확인
+        if (params.column.colId === 'title') {
+            const fullText = params.value; // 셀의 텍스트 값
+            
+            if (fullText && fullText.includes('/')) {
+                // 2. "/"로 스플릿하여 3번째 데이터 추출
+                const parts = fullText.split('/');
+                
+                if (parts.length >= 3) {
+                    const builderName = parts[3].trim();
+                    
+                    // 3. 우측 시공사 입력란(ID: db_builderSearch)에 값 넣기
+                    const builderInput = document.getElementById('db_builderSearch');
+                    if (builderInput) {
+                        builderInput.value = builderName;
+                        
+                        // 입력 효과를 시각적으로 보여주기 위한 포커스
+                        builderInput.focus(); 
+                        console.log("시공사 매칭 완료:", builderName);
+                    }
+                }
+            }
+        }
+    }
+};
 
+// QT DB용 컬럼 정의
+let dbGridApi;
+const dbColumnDefs = [
+    { headerName: "영업담당", field: "sales", width: 90 },
+    { headerName: "접수번호", field: "receipt_code", width: 110 },
+    { headerName: "현장시험자", field: "field_tester", width: 100 },
+    { headerName: "채취일", field: "getdate", width: 100 },
+    { headerName: "실접수일", field: "request_day", width: 100 },
+    { headerName: "시공사", field: "builder", width: 150 },
+    { headerName: "현장명", field: "construction", width: 200 },
+    { headerName: "시료명", field: "specimen", width: 150 },
+    { headerName: "시료량", field: "specimen_qty", width: 80 },
+    { headerName: "공급가액", field: "supply_value", width: 100, valueFormatter: params => params.value?.toLocaleString() },
+    { headerName: "부가세", field: "vat", width: 90, valueFormatter: params => params.value?.toLocaleString() },
+    { headerName: "의뢰인", field: "cm_name", width: 100 },
+    { headerName: "품질담당", field: "qm_name", width: 100 }
+];
+
+const dbGridOptions = {
+    columnDefs: dbColumnDefs,
+    defaultColDef: {
+        sortable: true,
+        filter: true,
+        resizable: true,
+        // ⭐ 추가: 모든 컬럼이 지정된 width를 지키도록 설정 (스크롤 생성의 핵심)
+        flex: 0,
+        suppressSizeToFit: true 
+    },
+    // ⭐ 수정: 자동 크기 조절을 끄고 설정한 width를 그대로 유지하게 함
+    autoSizeStrategy: {
+        type: 'none' 
+    },
+    headerHeight: 30,
+    rowHeight: 35,
+    rowData: [],
+    // ⭐ 확인: 이 내부에서 params.api.sizeColumnsToFit() 이 실행되지 않아야 함
+    onGridReady: (params) => {
+        console.log("QT DB 그리드 준비 완료");
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. 좌측 그리드 (비즈메카) 초기화
+    const bizDiv = document.querySelector('#bizmekaGrid');
+    if (bizDiv) {
+        gridApi = agGrid.createGrid(bizDiv, gridOptions);
+    }
+
+    // 2. 우측 그리드 (QT DB) 초기화 - 이 부분이 추가되어야 조회가 작동합니다.
+    const dbDiv = document.querySelector('#dbGrid');
+    if (dbDiv) {
+        // 반드시 스크립트 상단에 let dbGridApi; 와 const dbGridOptions 가 정의되어 있어야 합니다.
+        dbGridApi = agGrid.createGrid(dbDiv, dbGridOptions);
+        console.log("우측 그리드 초기화 완료");
+    }
+
+    // --- 날짜 자동 세팅 (이후 동일) ---
+    const startDateInput = document.getElementById('db_startDate');
+    const endDateInput = document.getElementById('db_endDate');
+
+    const today = new Date();
+    const endValue = today.toISOString().split('T')[0];
+    endDateInput.value = endValue;
+
+    const startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+    const startYear = startDate.getFullYear();
+    const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+    const startValue = `${startYear}-${startMonth}-01`;
+    startDateInput.value = startValue;
+});
+
+/* --- 기능 함수 (기존 유지) --- */
 function syncBizmeka() {
+    gridApi.showLoadingOverlay();
     const year = document.getElementById('search-year').value;
     const month = document.getElementById('search-month').value;
-    const tableBody = document.getElementById('bizmeka-body-top');
-
-    // [수정] colspan을 3으로 맞춤 (날짜, 범주, 제목)
-    tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-5"><div class="spinner-border spinner-border-sm text-primary"></div><br><span class="small">비즈메카 데이터 수집 중...</span></td></tr>';
-
     fetch(`/bizmeka-sync/?year=${year}&month=${month}`)
-        .then(response => response.json())
-        .then(result => {
-            if (!result.data || result.data.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-5 text-muted">수집된 일정이 없습니다.</td></tr>';
-            } else {
-                let rows = '';
-                result.data.forEach(item => {
-                rows += `
-                    <tr>
-                        <td class="text-center fw-bold text-primary col-date" style="width:180px;">
-                            ${item.date || '-'} <br>
-                            <span class="small text-muted" style="font-weight:normal;">${item.time || ''}</span>
-                        </td>
-                        <td class="col-title">
-                            <div class="fw-normal">${item.title || '-'}</div>
-                        </td>
-                    </tr>`;
-            });
-                tableBody.innerHTML = rows;
-            }
+        .then(res => res.json())
+        .then(res => {
+            gridApi.setGridOption('rowData', res.data || []);
+            gridApi.hideOverlay();
         })
-        .catch(error => {
-            console.error('Error:', error);
-            tableBody.innerHTML = '<tr><td colspan="3" class="text-center py-5 text-danger">통신 실패 (Django 서버 연결 확인)</td></tr>';
+        .catch(() => {
+            gridApi.setGridOption('rowData', []);
+            gridApi.hideOverlay();
         });
 }
+
+function deleteSelected() {
+    const rows = gridApi.getSelectedRows();
+    if (rows.length > 0 && confirm("삭제하시겠습니까?")) gridApi.applyTransaction({ remove: rows });
+}
+
+function downloadExcel() {
+    // 1. gridApi 존재 여부 확인 (에러 방지 핵심)
+    if (!gridApi) {
+        alert("그리드가 아직 로드되지 않았습니다.");
+        return;
+    }
+
+    const exportData = [];
+    
+    // 2. 데이터 추출 및 한글 헤더 매핑
+    // 이미지(image_fdecea)에서 보이는 [날짜, 범주, 제목] 순서로 엑셀을 구성합니다.
+    gridApi.forEachNode((node) => {
+        if (node.data) {
+            exportData.push({
+                "날짜": node.data.date || "",     // 백엔드 키: date
+                "범주": node.data.category || "", // 백엔드 키: category
+                "제목": node.data.title || ""    // 백엔드 키: title
+            });
+        }
+    });
+
+    if (exportData.length === 0) {
+        alert("다운로드할 데이터가 없습니다.");
+        return;
+    }
+
+    try {
+        // XLSX 라이브러리를 사용하여 엑셀 생성
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "비즈메카수집");
+        
+        // 파일명: 비즈메카_2026-01-06.xlsx 식으로 저장
+        const today = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `비즈메카_데이터_${today}.xlsx`);
+        
+    } catch (e) {
+        console.error("엑셀 저장 중 에러:", e);
+        alert("엑셀 파일 생성 중 오류가 발생했습니다. 브라우저 콘솔을 확인하세요.");
+    }
+}
+
+function uploadExcel() {
+    if (!gridApi) {
+        alert("그리드가 초기화되지 않았습니다.");
+        return;
+    }
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".xlsx, .xls"; // 엑셀 파일만 선택 가능하도록 제한
+    
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const data = new Uint8Array(ev.target.result);
+                const wb = XLSX.read(data, { type: "array" });
+                
+                // 1. 첫 번째 시트 데이터 가져오기
+                const rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                
+                // 2. [핵심] 엑셀의 한글 헤더를 영문 필드명으로 매핑 (데이터 변환)
+                const mappedData = rawData.map(row => ({
+                    date: row["날짜"] || "",      // 엑셀의 '날짜' 열 -> date 필드
+                    category: row["범주"] || "",  // 엑셀의 '범주' 열 -> category 필드
+                    title: row["제목"] || ""      // 엑셀의 '제목' 열 -> title 필드
+                }));
+
+                // 3. 그리드에 데이터 적용 (최신 버전 방식)
+                gridApi.setGridOption('rowData', mappedData);
+                
+                alert(`총 ${mappedData.length}건의 데이터를 가져왔습니다.`);
+            } catch (err) {
+                console.error("파일 읽기 오류:", err);
+                alert("엑셀 파일을 읽는 중 오류가 발생했습니다.");
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+    input.click();
+}
+
+function onDbSearch() {
+    if (!dbGridApi) {
+        console.error("그리드가 초기화되지 않았습니다.");
+        return;
+    }
+
+    // 로딩 시작 (v32 방식)
+    dbGridApi.setGridOption('loading', true);
+
+    const startDate = document.getElementById('db_startDate').value;
+    const endDate = document.getElementById('db_endDate').value;
+    const builder = document.getElementById('db_builderSearch').value;
+
+    // API 호출
+    fetch(`/get_qt_db_data/?startDate=${startDate}&endDate=${endDate}&builder=${encodeURIComponent(builder)}`)
+        .then(res => res.json())
+        .then(res => {
+            console.log("받은 데이터:", res); // 브라우저 콘솔에서도 확인 가능
+            if (res.status === 'success') {
+                // 데이터를 그리드에 설정
+                dbGridApi.setGridOption('rowData', res.data || []);
+                
+                if (res.data.length === 0) {
+                    console.warn("조회된 데이터가 없습니다.");
+                }
+            } else {
+                alert("조회 에러: " + res.message);
+            }
+        })
+        .catch(err => console.error("네트워크 에러:", err))
+        .finally(() => {
+            // 로딩 해제
+            dbGridApi.setGridOption('loading', false);
+        });
+}
+
+
 </script>
 </body>
-</html> 
+</html>
+{% endblock %}
