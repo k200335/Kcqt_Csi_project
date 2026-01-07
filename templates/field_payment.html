@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
     /* 1. 기본 배경 및 스크롤 방지 */
     body, html { 
@@ -131,7 +131,7 @@
             <div class="card border-info">
                 <div class="card-header bg-info text-white d-flex align-items-center py-1 px-2" style="height: 35px;">
                     <span class="small fw-bold me-auto" style="min-width: 120px;">
-                        <i class="fas fa-database"></i> QT DB 매칭 대기
+                        <i class="fas fa-database"></i> QT DB 조회
                     </span>
 
                     <div class="d-flex align-items-center gap-2">
@@ -157,13 +157,247 @@
         </div>
     </div>
 
-    <div class="bottom-row">
-        <div style="flex: 1;"><div class="card shadow-sm border-secondary border-opacity-25"><div class="card-header small bg-light text-secondary">비즈메카 상세 분석</div><div class="card-body"></div></div></div>
-        <div style="flex: 1;"><div class="card shadow-sm border-secondary border-opacity-25"><div class="card-header small bg-light text-secondary">매칭 데이터 작업</div><div class="card-body"></div></div></div>
-        <div style="flex: 1;"><div class="card shadow-sm border-secondary border-opacity-25"><div class="card-header small bg-light text-secondary">최종 결과</div><div class="card-body"></div></div></div>
+    <div class="bottom-row" style="display: flex; gap: 8px; align-items: stretch;">
+    
+    <div style="flex: 2;">
+        <div class="card shadow-sm border-secondary border-opacity-25 h-100">
+            <div class="card-header small bg-light text-secondary fw-bold">
+                <i class="bi bi-info-circle"></i> 현장시험 용역비 지급기준
+            </div>
+            <div class="card-body p-2">
+                <p class="text-muted small">추가 관리 항목이나<br>메모 영역입니다.</p>
+            </div>
+        </div>
+    </div>
+
+    <div style="flex: 4;">
+        <div class="card shadow-sm border-secondary border-opacity-25 h-100">
+            <div class="card-header bg-light text-secondary py-1 px-2 d-flex justify-content-between align-items-center" style="height: 35px;">
+                <span class="small fw-bold"><i class="bi bi-check-circle-fill text-success"></i> 완료건 보기</span>
+                
+                <div class="d-flex align-items-center gap-1">
+                    <select id="finish-year" class="form-select form-select-sm py-0" style="width: 85px; font-size: 0.75rem;">
+                        <option value="2023">2023년</option>
+                        <option value="2024">2024년</option>
+                        <option value="2025">2025년</option>
+                        <option value="2026" selected>2026년</option>
+                        <option value="2027">2027년</option>
+                    </select>
+
+                    <select id="finish-month" class="form-select form-select-sm py-0" style="width: 65px; font-size: 0.75rem;">
+                        <option value="all">전체</option>
+                        <option value="1">1월</option>
+                        <option value="2">2월</option>
+                        <option value="3">3월</option>
+                        <option value="4">4월</option>
+                        <option value="5">5월</option>
+                        <option value="6">6월</option>
+                        <option value="7">7월</option>
+                        <option value="8">8월</option>
+                        <option value="9">9월</option>
+                        <option value="10">10월</option>
+                        <option value="11">11월</option>
+                        <option value="12">12월</option>
+                    </select>
+
+                    <select id="finish-manager" class="form-select form-select-sm py-0" style="width: 90px; font-size: 0.75rem;">
+                        <option value="전체">전체</option>
+                        <option value="위재완">위재완</option>
+                        <option value="양지훈">양지훈</option>
+                        <option value="권석규">권석규</option>
+                        <option value="오범석">오범석</option>
+                    </select>
+
+                    <button onclick="loadFinishedData()" class="btn btn-primary btn-sm py-0 fw-bold" style="font-size: 0.75rem;">불러오기</button>
+                    <button onclick="downloadFinishedExcel()" class="btn btn-success btn-sm py-0" style="font-size: 0.75rem;">
+                        <i class="bi bi-file-earmark-excel"></i> 엑셀다운로드
+                    </button>
+
+                    <button onclick="processSettlement()" class="btn btn-warning btn-sm py-0 fw-bold" style="font-size: 0.75rem;">
+                        <i class="bi bi-calculator-fill"></i> 정산하기
+                    </button>
+
+                </div>
+            </div>
+
+            <div class="card-body p-0" style="position: relative;">
+                <div id="finishedGrid" class="ag-theme-quartz" style="width: 100%; height: 100%;">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="flex: 2;">
+        <div class="card shadow-sm border-secondary border-opacity-25 h-100 d-flex flex-column" style="overflow: hidden;">
+            <div class="card-header small bg-light text-secondary d-flex justify-content-between align-items-center">
+                <h6 class="m-0 fw-bold text-primary" style="font-size: 0.9rem;"><i class="bi bi-file-earmark-text"></i> 견적 상세 내역</h6>
+                <span id="selectedQtDisplay" class="badge bg-secondary" style="font-size: 0.7rem;">QT번호: -</span>
+            </div>
+            <div id="estimateDetailArea" class="table-responsive flex-grow-1" style="overflow-y: auto;">
+                <table class="table table-sm table-hover table-bordered mb-0" style="font-size: 0.8rem;">
+                    <thead class="table-light sticky-top">
+                        <tr class="text-center">
+                            <th style="width: 35px;">NO</th>
+                            <th>시험항목</th>
+                            <th style="width: 40px;">수량</th>
+                            <th style="width: 70px;">단가</th>
+                            <th style="width: 80px;">금액</th>
+                        </tr>
+                    </thead>
+                    <tbody id="estimateDetailBody">
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted small">상단 리스트의 행을 클릭하세요.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div style="flex: 2;">
+        <div class="card shadow-sm border-secondary border-opacity-25 h-100 d-flex flex-column" style="overflow: hidden;">
+            <div class="card-header small bg-light text-secondary d-flex justify-content-between align-items-center">
+                <h6 class="m-0 fw-bold text-success" style="font-size: 0.9rem;"><i class="bi bi-calculator"></i> 공급금액 상세 요약</h6>
+            </div>
+            <div class="flex-grow-1 overflow-auto p-1">
+                <table class="table table-sm table-bordered mb-0" style="font-size: 0.78rem; table-layout: fixed; border-collapse: collapse;">
+                    <tbody class="text-center">
+                        <tr>
+                            <th class="table-light" style="width: 35%;">기 준 단 가</th>
+                            <td colspan="3" class="text-end px-2" id="sum_base_price" style="background-color: #e7f3ff;">0</td>
+                        </tr>
+                        <tr>
+                            <th class="table-light">기본료 수량</th>
+                            <td class="text-end px-2" id="cnt_base">0</td>
+                            <th class="table-light">기 본 료</th>
+                            <td class="text-end px-2" id="sum_base_fee">0</td>
+                        </tr>
+                        <tr>
+                            <th class="table-light">정보처리 수량</th>
+                            <td class="text-end px-2" id="cnt_info">0</td>
+                            <th class="table-light">정 보 처 리</th>
+                            <td class="text-end px-2" id="sum_info_fee">0</td>
+                        </tr>
+                        <tr>
+                            <th class="table-light">조건 수수료</th>
+                            <td class="text-end px-2" id="sum_cond_fee">0</td>
+                            <th class="table-light">시편 제작비</th>
+                            <td class="text-end px-2" id="sum_specimen_fee">0</td>
+                        </tr>
+                        <tr>
+                            <th class="table-light">출 장 구 분</th>
+                            <td class="text-end px-2" id="val_travel_type">-</td>
+                            <th class="table-light">출 장 비</th>
+                            <td class="text-end px-2" id="sum_travel_fee">0</td>
+                        </tr>
+                        <tr>
+                            <th class="table-light">할인제외액</th>
+                            <td class="text-end px-2" id="sum_no_discount">0</td>
+                            <th class="table-light">할인가능액</th>
+                            <td class="text-end px-2" id="sum_yes_discount">0</td>
+                        </tr>
+                        <tr>
+                            <th class="table-light">할 인 율</th>
+                            <td class="text-end px-2 text-primary fw-bold" id="val_discount_rate">0%</td>
+                            <th class="table-light">정액 할인</th>
+                            <td class="text-end px-2 text-danger" id="val_fixed_discount">0</td>
+                        </tr>
+                        <tr>
+                            <th class="table-dark" style="color: white; font-size: 0.75rem;">공급가액</th>
+                            <td class="text-end px-2 fw-bold" id="total_supply_price" style="background-color: #e7f3ff;">0</td>
+                            <th class="table-dark" style="color: white; font-size: 0.75rem;">부가세</th>
+                            <td class="text-end px-2 fw-bold" id="total_vat" style="background-color: #e7f3ff;">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+</div>
+<div class="modal fade" id="settlementModal" tabindex="-1" aria-labelledby="settlementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl"> <div class="modal-content">
+            
+            <div class="modal-header bg-warning text-dark py-2" style="cursor: move;">
+                <h5 class="modal-title fw-bold fs-6" id="settlementModalLabel">
+                    <i class="bi bi-calculator-fill"></i> 현장팀 용역비 정산 처리
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body p-3">
+                <div class="d-flex flex-wrap align-items-center gap-3 mb-3 p-2 border rounded bg-light">
+                    <div class="d-flex align-items-center">
+                        <span class="fw-bold small me-2 text-primary">종목 선택 :</span>
+                        <select id="m_item_selector" class="form-select form-select-sm" style="width: 180px;" onchange="applyItemStandard()">
+                            <option value="">-- 종목 선택 --</option>
+                            </select>
+                    </div>
+                    <div class="d-flex align-items-center gap-1 border-end pe-3 me-2">
+                        <span class="badge bg-secondary">DB기준</span>
+                        <input type="text" id="db_base_val" class="form-control form-control-sm text-center bg-white" style="width: 50px;" readonly placeholder="공수">
+                        <input type="text" id="db_price_val" class="form-control form-control-sm text-center bg-white" style="width: 80px;" readonly placeholder="단가">
+                        <input type="text" id="db_extra_val" class="form-control form-control-sm text-center bg-white" style="width: 70px;" readonly placeholder="추가">
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="fw-bold small me-2">출장비 변경 :</span>
+                        <div class="input-group input-group-sm" style="width: 150px;">
+                            <button class="btn btn-outline-secondary" onclick="adjustValue('m_travel_fee', -10000)">-</button>
+                            <input type="number" id="m_travel_fee" class="form-control text-center fw-bold" value="0">
+                            <button class="btn btn-outline-secondary" onclick="adjustValue('m_travel_fee', 10000)">+</button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center">
+                        <span class="fw-bold small me-2">추가 금액 :</span>
+                        <div class="input-group input-group-sm" style="width: 140px;">
+                            <button class="btn btn-outline-secondary" onclick="adjustValue('m_extra_fee', -5000)">-</button>
+                            <input type="number" id="m_extra_fee" class="form-control text-center fw-bold" value="0">
+                            <button class="btn btn-outline-secondary" onclick="adjustValue('m_extra_fee', 5000)">+</button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center">
+                        <span class="fw-bold small me-2">공수 :</span>
+                        <div class="input-group input-group-sm" style="width: 110px;">
+                            <button class="btn btn-outline-secondary" onclick="adjustValue('m_work_count', -1)">-</button>
+                            <input type="text" id="m_work_count" class="form-control text-center fw-bold" value="1" style="color: #ff00ff;">
+                            <button class="btn btn-outline-secondary" onclick="adjustValue('m_work_count', 1)">+</button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center flex-grow-1">
+                        <span class="fw-bold small me-2">비고 :</span>
+                        <input type="text" id="m_memo" class="form-control form-control-sm" placeholder="비고 입력">
+                    </div>
+
+                    <div class="d-flex gap-1">
+                        <button onclick="updateTableReflection()" class="btn btn-primary btn-sm fw-bold">정산하기</button>
+                        <button onclick="saveToDatabase()" class="btn btn-danger btn-sm fw-bold">DB저장</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive border rounded" style="max-height: 400px; overflow-x: auto;">
+                    <table class="table table-sm table-bordered mb-0" style="font-size: 0.75rem; min-width: 1300px; white-space: nowrap;">
+                        <thead class="table-light sticky-top text-center">
+                            <tr>
+                                <th>시험수거일</th><th>현장담당</th><th>구분</th><th>의뢰업체명</th>
+                                <th>시료명</th><th>공수</th><th>출장비</th><th>추가</th>
+                                <th>비고</th><th>접수번호</th><th>영업담당</th><th>지급여부</th>
+                            </tr>
+                        </thead>
+                        <tbody id="settlementTargetList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+            </div>
+        </div>
     </div>
 </div>
-
 <script>
 // [그리드 정의] 컬럼 순서 고정: 체크박스 -> 날짜 -> 제목
 const columnDefs = [
@@ -247,6 +481,14 @@ const gridOptions = {
 // QT DB용 컬럼 정의
 let dbGridApi;
 const dbColumnDefs = [
+    { 
+        headerName: "", 
+        width: 50, 
+        checkboxSelection: true,         // 체크박스 활성화
+        headerCheckboxSelection: true,   // 헤더 전체 선택 활성화
+        pinned: 'left', 
+        lockPosition: 'left' 
+    },
     { headerName: "영업담당", field: "sales", width: 90 },
     { headerName: "접수번호", field: "receipt_code", width: 110 },
     { headerName: "현장시험자", field: "field_tester", width: 100 },
@@ -264,26 +506,42 @@ const dbColumnDefs = [
 
 const dbGridOptions = {
     columnDefs: dbColumnDefs,
+    rowSelection: 'multiple', // 여러 행 선택 가능하도록 설정
     defaultColDef: {
         sortable: true,
         filter: true,
         resizable: true,
-        // ⭐ 추가: 모든 컬럼이 지정된 width를 지키도록 설정 (스크롤 생성의 핵심)
-        flex: 0,
+        flex: 0, 
         suppressSizeToFit: true 
     },
-    // ⭐ 수정: 자동 크기 조절을 끄고 설정한 width를 그대로 유지하게 함
     autoSizeStrategy: {
         type: 'none' 
     },
     headerHeight: 30,
     rowHeight: 35,
     rowData: [],
-    // ⭐ 확인: 이 내부에서 params.api.sizeColumnsToFit() 이 실행되지 않아야 함
+
+    // ⭐ 클릭 이벤트 수정: 'receipt_code'를 직접 참조하도록 변경
+    onRowClicked: (params) => {
+    // 1. 단일 필드 추출
+        const receiptNo = params.data.receipt_code;
+
+        // 2. 값이 있을 때만 실행하는 안전장치
+        if (receiptNo) {
+            console.log("[조회 시작] 접수번호:", receiptNo);
+            fetchDataByReceiptNo(receiptNo);
+        } else {
+            console.warn("데이터에 receipt_code가 포함되어 있지 않습니다.");
+        }
+    },
+
     onGridReady: (params) => {
         console.log("QT DB 그리드 준비 완료");
     }
 };
+
+
+
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. 좌측 그리드 (비즈메카) 초기화
@@ -459,6 +717,683 @@ function onDbSearch() {
         });
 }
 
+/**
+ * 1. 상단 표 행 클릭 이벤트 설정
+ * 페이지 로드 후 또는 표 데이터 렌더링 후 실행하세요.
+ */
+function initTableClickEvent() {
+    // 이미지상 상단 표의 tbody ID가 'topTableBody'라고 가정합니다.
+    const tableBody = document.getElementById('topTableBody');
+    if (!tableBody) return;
+
+    tableBody.addEventListener('click', function(e) {
+        // 클릭된 요소의 부모인 tr(행)을 찾습니다.
+        const row = e.target.closest('tr');
+        if (!row) return;
+
+        // 2번째 열(Index 1)에 있는 '접수번호'를 추출합니다. [이미지 기준]
+        const receiptNo = row.cells[1].innerText.trim();
+        
+        if (receiptNo && receiptNo !== "") {
+            console.log("[조회 시작] 접수번호:", receiptNo);
+            fetchDataByReceiptNo(receiptNo);
+            
+            // 클릭한 행 표시 (선택사항)
+            document.querySelectorAll('#topTableBody tr').forEach(tr => tr.classList.remove('table-active'));
+            row.classList.add('table-active');
+        }
+    });
+}
+
+
+//  * 2. 서버에서 상세 데이터 가져오기
+async function fetchDataByReceiptNo(receiptNo) {
+    try {
+        // 서버의 get_payment_detail 뷰 호출
+        const response = await fetch(`/api/get_payment_detail?receipt_no=${receiptNo}`);
+        const result = await response.json();
+
+        if (result.success) {
+            // [중앙] 견적 상세 내역 업데이트 (기존 함수)
+            renderEstimateDetail(result.estimate_items, result.qt_no);
+            
+            // [우측] 공급금액 상세 요약 업데이트 (기존 함수)
+            updateSummaryTable(result.summary);
+            
+            console.log(`[성공] ${receiptNo} 데이터 로드 완료`);
+        } else {
+            console.error("서버 응답 오류:", result.message);
+        }
+    } catch (error) {
+        console.error("네트워크 통신 에러:", error);
+    }
+}
+//  * 3. 견적 상세 내역 렌더링 (기존 코드 유지)
+ /***/
+function renderEstimateDetail(data, qtNo) {
+    const body = document.getElementById('estimateDetailBody');
+    const badge = document.getElementById('selectedQtDisplay');
+    if (badge) badge.innerText = `QT번호: ${qtNo}`;
+    if (!body) return;
+
+    body.innerHTML = ''; 
+
+    if (!data || data.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" class="text-center py-4">내역이 없습니다.</td></tr>';
+        return;
+    }
+
+    data.forEach((item, index) => {
+        body.innerHTML += `
+            <tr>
+                <td class="text-center">${index + 1}</td>
+                <td>${item.시험항목 || '-'}</td>
+                <td class="text-center">${Number(item.수량 || 0).toLocaleString()}</td>
+                <td class="text-end">${Number(item.단가 || 0).toLocaleString()}</td>
+                <td class="text-end fw-bold text-primary">${Number(item.금액 || 0).toLocaleString()}</td>
+            </tr>`;
+    });
+}
+
+/**
+ * 4. 공급금액 상세 요약 렌더링 (기존 코드 유지)
+ */
+function updateSummaryTable(data) {
+    const fmt = (num) => Number(num || 0).toLocaleString();
+    let travelTypeText = (data.travel_type == '1') ? '본원' : (data.travel_type == '2' ? '지원' : (data.travel_type || '-'));
+
+    try {
+        document.getElementById('sum_base_price').innerText = fmt(data.base_price);
+        document.getElementById('cnt_base').innerText = data.base_cnt || 0;
+        document.getElementById('sum_base_fee').innerText = fmt(data.base_fee);
+        document.getElementById('cnt_info').innerText = data.info_cnt || 0;
+        document.getElementById('sum_info_fee').innerText = fmt(data.info_fee);
+        document.getElementById('sum_cond_fee').innerText = fmt(data.cond_fee);
+        document.getElementById('sum_specimen_fee').innerText = fmt(data.specimen_fee);
+        document.getElementById('val_travel_type').innerText = travelTypeText;
+        document.getElementById('sum_travel_fee').innerText = fmt(data.travel_fee);
+        document.getElementById('sum_no_discount').innerText = fmt(data.no_discount_amt);
+        document.getElementById('sum_yes_discount').innerText = fmt(data.yes_discount_amt);
+        document.getElementById('val_discount_rate').innerText = (data.discount_rate || 0) + "%";
+        document.getElementById('val_fixed_discount').innerText = fmt(data.fixed_discount_amt);
+        document.getElementById('total_supply_price').innerText = fmt(data.supply_value);
+        document.getElementById('total_vat').innerText = fmt(data.vat);
+    } catch (e) {
+        console.error("[에러] 요약표 렌더링 중 ID 매칭 실패:", e);
+    }
+}
+
+// 페이지가 로드될 때 클릭 이벤트를 활성화합니다.
+document.addEventListener('DOMContentLoaded', initTableClickEvent);
+
+// -----------------여기서 부터 완료건 보기-------------
+// 전역 변수로 선언하여 다른 함수에서도 접근 가능하게 함
+let finishedGridApi;
+// 완료건 보기 컬럼 정의 (요청하신 순서대로)
+const finishedColumnDefs = [
+    { headerName: "ID", field: "ID", width: 60 },
+    { headerName: "시험수거일", field: "시험수거일", width: 110 },
+    { headerName: "현장담당", field: "현장담당", width: 90 },
+    { headerName: "구분", field: "구분", width: 80 },
+    { headerName: "의뢰업체명", field: "의뢰업체명", width: 150 },
+    { headerName: "시료명", field: "시료명", width: 150 },
+    { headerName: "공수", field: "공수", width: 70 },
+    { headerName: "출장비", field: "출장비", width: 90, valueFormatter: params => params.value?.toLocaleString() },
+    { headerName: "추가", field: "추가", width: 80 },
+    { headerName: "비고", field: "비고", width: 150 },
+    { headerName: "접수번호", field: "접수번호", width: 120 },
+    { headerName: "영업담당", field: "영업담당", width: 90 },
+    { headerName: "시료채취자", field: "시료채취자", width: 100 },
+    { headerName: "현장시험자", field: "현장시험자", width: 100 },
+    { headerName: "지급여부", field: "지급여부", width: 80 },
+    { headerName: "순번", field: "순번", width: 70 }
+];
+
+const finishedGridOptions = {
+    columnDefs: finishedColumnDefs,
+    defaultColDef: {
+        sortable: true,
+        filter: true,
+        resizable: true,
+        flex: 0
+    },
+    headerHeight: 30,
+    rowHeight: 30,
+    rowData: [],
+    onGridReady: (params) => {
+        window.finishedGridApi = params.api;
+    }
+};
+
+// 3. 페이지 로드 즉시 그리드 생성
+document.addEventListener('DOMContentLoaded', () => {
+    const gridDiv = document.querySelector('#finishedGrid');
+    if (gridDiv) {
+        // AG Grid 초기화 (버전 31.x 이상 기준)
+        finishedGridApi = agGrid.createGrid(gridDiv, finishedGridOptions);
+        console.log("완료건 보기 그리드 초기화 완료");
+    } else {
+        console.error("finishedGrid를 찾을 수 없습니다. HTML ID를 확인하세요.");
+    }
+});
+
+
+// 데이터불러오기 함수
+async function loadFinishedData() {
+    const year = document.getElementById('finish-year').value;
+    const month = document.getElementById('finish-month').value;
+    const manager = document.getElementById('finish-manager').value;
+
+    console.log(`[완료건 조회] ${year}년 ${month}월 / 담당자: ${manager}`);
+
+    try {
+        const response = await fetch(`/api/get_finished_data?year=${year}&month=${month}&manager=${manager}`);
+        const result = await response.json();
+
+        if (result.success) {
+            window.finishedGridApi.setGridOption('rowData', result.data);
+            console.log("데이터 로드 완료:", result.data.length, "건");
+        } else {
+            alert("조회 실패: " + result.message);
+        }
+    } catch (error) {
+        console.error("네트워크 에러:", error);
+    }
+}
+
+// -----------------완료건 보기는 여기까지--------------
+
+// -----------------여기서 부터 정산하기 모달 창------------
+// [수정된 통합 정산 함수]
+// function processSettlement() {
+//     // 1. 선택된 행 가져오기 (변수명 일치 확인)
+//     const bizRows = gridApi.getSelectedRows(); // 좌측 비즈메카
+//     const qtRows = dbGridApi.getSelectedRows(); // 우측 QT DB
+
+//     // 2. 선택 체크
+//     if (bizRows.length === 0 || qtRows.length === 0) {
+//         alert("비즈메카와 QT DB에서 각각 정산할 항목을 선택(체크)해 주세요.");
+//         return;
+//     }
+
+//     // 3. 우측 하단 요약표에서 출장비 원본 가져오기
+//     const travelFeeElem = document.getElementById('sum_travel_fee');
+//     const travelFee = travelFeeElem ? Number(travelFeeElem.innerText.replace(/,/g, '') || 0) : 0;
+
+//     // 4. 모달 상단 입력칸 초기화
+//     document.getElementById('m_travel_fee').value = travelFee;
+//     document.getElementById('m_extra_fee').value = 0;
+//     document.getElementById('m_work_count').value = 1;
+//     document.getElementById('m_memo').value = "";
+
+//     // 5. 모달 내 테이블 그리기 실행
+//     updateTableReflection();
+
+//     // 6. 모달 띄우기 (부트스트랩 5 방식)
+//     const modalElem = document.getElementById('settlementModal');
+//     if (modalElem) {
+//         const myModal = bootstrap.Modal.getOrCreateInstance(modalElem);
+//         myModal.show();
+//     } else {
+//         console.error("settlementModal ID를 찾을 수 없습니다.");
+//     }
+// }
+
+// [통합 및 수정] 정산하기 모달 실행 함수
+function processSettlement() {
+    const bizRows = gridApi.getSelectedRows(); 
+    const qtRows = dbGridApi.getSelectedRows(); 
+
+    if (bizRows.length === 0 || qtRows.length === 0) {
+        alert("비즈메카와 견적 내역을 각각 선택해 주세요.");
+        return;
+    }
+
+    const biz = bizRows[0];
+    const qt = qtRows[0];
+
+    // 1. [수정] 시료수거 자동 검색 및 50,000원 입력 로직 삭제
+    // 제목 데이터만 가져오고, 추가 금액은 기본 0으로 설정합니다.
+    const bizTitle = (biz.제목 || biz.title || biz.item || biz.시료명 || "").toString();
+    let autoExtraFee = 0; 
+
+    // 2. [상세 테이블 스캐닝] 출장비 및 단위수량 추출
+    const detailRows = document.querySelectorAll('#estimateDetailBody tr');
+    let travelFee = 0;
+    let unitQuantityMemo = "";
+
+    detailRows.forEach(row => {
+        const cells = row.cells;
+        if (cells.length < 4) return;
+        const itemName = cells[1].innerText.trim();
+        const itemQty = cells[2].innerText.trim();
+        const itemPrice = cells[3].innerText.replace(/,/g, '').trim();
+
+        if (itemName.includes("출장비")) {
+            travelFee = parseFloat(itemPrice) || 0;
+        }
+        if (itemName.includes("콘크리트 단위수량")) {
+            unitQuantityMemo = `${itemName} (${itemQty}회)`;
+        }
+    });
+
+    // 3. 필드 매핑 (날짜, 담당자 등 누락 방지)
+    const displayData = {
+        date: biz.접수일시 || biz.날짜 || biz.date || "-",
+        manager: qt.현장담당 || qt.담당자 || qt.field_tester || qt.sales || "-",
+        builder: qt.의뢰기관명 || qt.의뢰업체명 || qt.builder || "-",
+        receiptNo: qt.접수번호 || qt.receipt_code || "-"
+    };
+
+    // 4. 모달 상단 입력창에 값 주입
+    // 추가 금액(m_extra_fee)은 이제 항상 0으로 세팅됩니다.
+    const extraFeeInput = document.getElementById('m_extra_fee');
+    if (extraFeeInput) {
+        extraFeeInput.value = autoExtraFee; 
+    }
+    document.getElementById('m_travel_fee').value = travelFee;
+    document.getElementById('m_work_count').value = 1;
+    document.getElementById('m_memo').value = unitQuantityMemo;
+
+    // 5. 모달 하단 표 갱신 (지급여부 칸은 비워둠)
+    const targetBody = document.getElementById('settlementTargetList');
+    if (targetBody) {
+        targetBody.innerHTML = "";
+        const tr = document.createElement('tr');
+        tr.className = 'text-center align-middle';
+        tr.dataset.originalSpecimen = bizTitle;
+
+        tr.innerHTML = `
+            <td>${displayData.date}</td>
+            <td>${displayData.manager}</td>
+            <td>현장시험</td>
+            <td class="text-start">${displayData.builder}</td>
+            <td class="text-start">${bizTitle}</td> 
+            <td>1</td>
+            <td class="text-end">${travelFee.toLocaleString()}</td>
+            <td class="text-end text-danger">${autoExtraFee.toLocaleString()}</td>
+            <td class="text-start">${unitQuantityMemo}</td>
+            <td>${displayData.receiptNo}</td>
+            <td>${qt.영업담당 || qt.sales || '-'}</td>
+            <td></td> 
+        `;
+        targetBody.appendChild(tr);
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('settlementModal'));
+    modal.show();
+}
+
+
+function updateTableReflection() {
+    const targetRow = document.querySelector('#settlementTargetList tr');
+    if (!targetRow) return;
+
+    const selectedItemName = document.getElementById('m_item_selector').options[document.getElementById('m_item_selector').selectedIndex].text;
+    const workCount = document.getElementById('m_work_count').value;
+    const travelFee = document.getElementById('m_travel_fee').value;
+    const extraFee = document.getElementById('m_extra_fee').value;
+    let memo = document.getElementById('m_memo').value;
+
+    // [규칙 추가] 단위수량 자동 비고 생성
+    const originalSpecimen = targetRow.dataset.originalSpecimen || "";
+    if (originalSpecimen.includes("콘크리트 단위수량")) {
+        const autoMemo = `단위수량 ${workCount}회`;
+        memo = memo ? `${memo} (${autoMemo})` : autoMemo;
+    }
+
+    // 표 내용 덮어쓰기
+    targetRow.cells[4].innerText = selectedItemName; 
+    targetRow.cells[5].innerText = workCount;
+    targetRow.cells[6].innerText = Number(travelFee).toLocaleString();
+    targetRow.cells[7].innerText = Number(extraFee).toLocaleString();
+    targetRow.cells[8].innerText = memo;
+    
+    targetRow.cells[4].style.color = 'blue';
+    targetRow.cells[4].style.fontWeight = 'bold';
+}
+
+// 1. 값 조절 함수 (-, + 버튼 동작)
+function adjustValue(id, step) {
+    const el = document.getElementById(id);
+    let val = parseFloat(el.value) || 0;
+    el.value = val + step;
+    updateTableReflection(); // 값이 바뀌면 표에 즉시 반영
+}
+
+// 2. 모달 열기 및 초기 데이터 세팅
+
+
+// 3. 상단 입력값을 표(Table)에 실시간 반영하는 함수 (정산하기 버튼 포함)
+
+
+// 4. DB 저장 로직 (Django View와 통신)
+function saveToDatabase() {
+    if(!confirm("현재 내역을 'winapps_현장팀' 테이블에 저장하시겠습니까?")) return;
+
+    // 최종 데이터 수집
+    const data = {
+        date: bizmekaGridApi.getSelectedRows()[0].날짜,
+        manager: "{{ user.username }}",
+        customer: dbGridApi.getSelectedRows()[0].시공사,
+        item: bizmekaGridApi.getSelectedRows()[0].제목,
+        count: document.getElementById('m_work_count').value,
+        travel_fee: document.getElementById('m_travel_fee').value,
+        extra_fee: document.getElementById('m_extra_fee').value,
+        memo: document.getElementById('m_memo').value,
+        receipt_no: dbGridApi.getSelectedRows()[0].접수번호,
+        sales_manager: dbGridApi.getSelectedRows()[0].영업담당
+    };
+
+    fetch('/save_field_settlement/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(result => {
+        if(result.success) {
+            alert("DB 저장 성공!");
+            location.reload();
+        } else {
+            alert("저장 실패: " + result.message);
+        }
+    });
+}
+
+// 모달 드래그 이동 기능
+document.addEventListener('mousedown', function (e) {
+    // 모달 헤더인지 확인
+    const header = e.target.closest('.modal-header');
+    if (!header) return;
+
+    const modal = header.closest('.modal-content');
+    if (!modal) return;
+
+    // 드래그 시작 시 위치 계산
+    let offset = {
+        x: e.clientX - modal.getBoundingClientRect().left,
+        y: e.clientY - modal.getBoundingClientRect().top
+    };
+
+    function onMouseMove(e) {
+        // 모달 위치 업데이트 (부모 레이아웃 영향 방지를 위해 fixed 권장)
+        modal.style.position = 'fixed';
+        modal.style.margin = '0';
+        modal.style.left = (e.clientX - offset.x) + 'px';
+        modal.style.top = (e.clientY - offset.y) + 'px';
+    }
+
+    function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+});
+
+// 1. DB 기준 정보 (이미지 image_a592ff.png 기준 데이터 구성)
+const itemStandards = [
+    { id: 6, name: "생콘", base: 3, price: "출장비", extra: 30000 },
+    { id: 7, name: "어스앵커", base: 2, price: 200000, extra: 100000 },
+    { id: 8, name: "코아채취(아스콘)", base: 3, price: "출장비", extra: 10000 },
+    { id: 9, name: "코아채취(콘크리트)", base: 1, price: 300000, extra: 50000 },
+    { id: 18, name: "몰드수거", base: 1, price: 0, extra: 0 },
+    { id: 20, name: "시료수거", base: 1, price: 0, extra: 50000 }
+    // 필요한 데이터를 위와 같은 형식으로 추가하세요.
+];
+
+// 2. 페이지 로드 시 드롭다운 메뉴 생성
+document.addEventListener('DOMContentLoaded', () => {
+    const selector = document.getElementById('m_item_selector');
+    if(selector) {
+        itemStandards.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.name;
+            selector.appendChild(opt);
+        });
+    }
+});
+
+// 3. 종목 선택 시 자동 값 뿌리기 함수
+
+function applyItemStandard() {
+    const selector = document.getElementById('m_item_selector');
+    const selectedId = selector.value;
+    const selectedText = selector.options[selector.selectedIndex].text; // 선택된 종목 명칭
+    const item = itemStandards.find(i => i.id == selectedId);
+    
+    if (!item) return;
+
+    // [기본 값 세팅]
+    document.getElementById('m_work_count').value = item.base;
+    
+    // 출장비 세팅 (기존 로직 유지)
+    if (item.price === "출장비") {
+        const currentTravelFee = document.getElementById('m_travel_fee').value;
+        document.getElementById('m_travel_fee').value = currentTravelFee || 250000;
+    } else {
+        document.getElementById('m_travel_fee').value = item.price;
+    }
+
+    // --- [사용자 요청 조건 처리 핵심] ---
+    let extraFee = item.extra; 
+    let category = "현장시험"; // 기본값
+
+    // 조건 1: 시료수거, 몰드수거, 시료접수
+    if (["시료수거", "몰드수거", "시료접수"].includes(selectedText)) {
+        category = "시료수거"; // 구분을 '시료수거'로 변경
+        if (selectedText === "시료수거" || selectedText === "시료접수") {
+            extraFee = 50000; // 추가금액 5만원
+        }
+    } 
+    // 조건 2: 코아채취 관련
+    else if (selectedText.includes("코아채취")) {
+        category = "기타"; // 구분을 '기타'로 변경
+    }
+
+    // 추가금액 입력창 업데이트
+    document.getElementById('m_extra_fee').value = extraFee;
+
+    // [중요] 변경된 category 값을 표 반영 함수로 전달합니다.
+    updateTableReflection(category); 
+}
+
+// 2. 표(Table) 내용을 업데이트하는 함수
+function updateTableReflection(forcedCategory) {
+    const targetRow = document.querySelector('#settlementTargetList tr');
+    if (!targetRow) return;
+
+    const selectedItemName = document.getElementById('m_item_selector').options[document.getElementById('m_item_selector').selectedIndex].text;
+    const workCount = document.getElementById('m_work_count').value;
+    const travelFee = document.getElementById('m_travel_fee').value;
+    const extraFee = document.getElementById('m_extra_fee').value;
+    let memo = document.getElementById('m_memo').value;
+
+    // [해결포인트] 전달받은 구분(forcedCategory)이 있다면 해당 셀(index 2)을 업데이트합니다.
+    if (forcedCategory) {
+        targetRow.cells[2].innerText = forcedCategory; // '구분' 칸 강제 변경
+    } else if (!targetRow.cells[2].innerText) {
+        targetRow.cells[2].innerText = "현장시험"; // 값이 아예 없을 때만 기본값
+    }
+
+    // 나머지 표 내용 업데이트
+    targetRow.cells[4].innerText = selectedItemName; // '시료명'
+    targetRow.cells[5].innerText = workCount;
+    targetRow.cells[6].innerText = Number(travelFee).toLocaleString();
+    targetRow.cells[7].innerText = Number(extraFee).toLocaleString();
+    targetRow.cells[8].innerText = memo;
+    
+    // 시료명 스타일 강조
+    targetRow.cells[4].style.color = 'blue';
+    targetRow.cells[4].style.fontWeight = 'bold';
+}
+
+// 초기 로드 실행
+document.addEventListener('DOMContentLoaded', loadItemStandards);
+
+// 계산하기
+function calculateSettlement() {
+    // 1. 값 가져오기 (DB기준값 vs 입력값)
+    const dbBase = parseInt(document.getElementById('db_base_val').value) || 0;    // DB기준 기본(공수)
+    const dbExtra = parseInt(document.getElementById('db_extra_val').value) || 0;  // DB기준 추가금액
+    const dbPrice = document.getElementById('db_price_val').value;                 // DB기준 단가
+    
+    const inputWorkCount = parseInt(document.getElementById('m_work_count').value) || 0; // 사용자가 입력한 공수
+
+    // 2. 공수 비교 및 추가금액 계산 (규칙 2, 3)
+    let finalExtraFee = 0;
+    if (inputWorkCount > dbBase) {
+        // 입력 공수가 기본보다 크면: (입력 - 기본) * DB추가금액
+        finalExtraFee = (inputWorkCount - dbBase) * dbExtra;
+    } else {
+        // 같거나 작으면 0원
+        finalExtraFee = 0;
+    }
+    document.getElementById('m_extra_fee').value = finalExtraFee; // "추가금액"창에 입력
+
+    // 3. 단가 및 출장비 처리 (규칙 4)
+    if (dbPrice !== "출장비" && dbPrice !== "") {
+        // "출장비"가 아닌 특정 금액이 들어있는 경우 그 금액을 입력창에 넣음
+        document.getElementById('m_travel_fee').value = dbPrice;
+    }
+    // "출장비"라고 되어있으면 기존 값을 유지하므로 별도 처리를 하지 않습니다.
+
+    // 4. 표에 즉시 반영
+    if (typeof updateTableReflection === 'function') {
+        updateTableReflection();
+    }
+}
+
+// 공수 입력창의 + / - 버튼을 누를 때마다 이 함수가 실행되도록 연결해야 합니다.
+
+
+
+// 숫자를 증감시키는 기존 함수 수정
+function adjustValue(id, delta) {
+    const input = document.getElementById(id);
+    if (!input) return;
+
+    let currentValue = parseFloat(input.value) || 0;
+    let newValue = currentValue + delta;
+
+    // 공수는 0보다 작아질 수 없도록 방어
+    if (id === 'm_work_count' && newValue < 0) newValue = 0;
+
+    input.value = newValue;
+
+    // 핵심: 공수(m_work_count)가 변경되었다면 즉시 계산 함수 실행
+    if (id === 'm_work_count') {
+        calculateSettlement(); 
+    }
+}
+
+// 공수 입력창에 직접 숫자를 입력했을 때도 실시간 계산
+document.getElementById('m_work_count').addEventListener('input', function() {
+    calculateSettlement();
+});
+
+async function saveToDatabase() {
+    const tableRows = document.querySelectorAll('#settlementTargetList tr');
+    if (tableRows.length === 0) {
+        alert("저장할 데이터가 없습니다. 먼저 정산하기를 눌러주세요.");
+        return;
+    }
+
+    if (!confirm("현재 정산 내역을 DB에 저장하시겠습니까?")) return;
+
+    const dataToSave = [];
+    tableRows.forEach(row => {
+        const cells = row.cells;
+        dataToSave.push({
+            '시험수거일': cells[0].innerText,
+            '현장담당': cells[1].innerText,
+            '구분': cells[2].innerText,
+            '의뢰업체명': cells[3].innerText,
+            '시료명': cells[4].innerText, // 드롭다운에서 선택된 종목명
+            '공수': cells[5].innerText,   // 1단위로 바뀐 공수
+            '출장비': cells[6].innerText, // 콤마 포함된 금액
+            '추가': cells[7].innerText,   // 계산된 추가금액
+            '비고': cells[8].innerText,   // 입력된 비고
+            '접수번호': cells[9].innerText,
+            '영업담당': cells[10].innerText,
+            '지급여부': '미지급'
+        });
+    });
+
+    try {
+        const response = await fetch('/api/save-settlement/', { // urls.py 경로에 맞게 수정
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // CSRF 토큰 필요 시 추가: 'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(dataToSave)
+        });
+
+        const result = await response.json();
+        if (result.status === 'success') {
+            alert(result.message);
+            // 저장 성공 시 모달 닫기 혹은 초기화
+            bootstrap.Modal.getInstance(document.getElementById('settlementModal')).hide();
+        } else {
+            alert("저장 실패: " + result.message);
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        alert("서버 통신 오류가 발생했습니다.");
+    }
+}
+
+function openSettlementModal(bizRow, qtRow) {
+    // 1. 모달 내 입력창 초기화
+    document.getElementById('m_item_selector').value = ""; 
+    document.getElementById('m_travel_fee').value = qtRow.supply_value || 0; // 기본 출장비 세팅
+    document.getElementById('m_work_count').value = 1; // 공수 기본값 1
+    document.getElementById('m_memo').value = "";
+
+    // 2. [추가 요청 규칙] 시료수거 확인
+    const originalSpecimen = bizRow.specimen || ""; // 비즈메카 원본 시료명
+    const extraFeeInput = document.getElementById('m_extra_fee');
+    
+    if (originalSpecimen.includes("*시료수거*")) {
+        extraFeeInput.value = 50000; // 단어 포함 시 50,000원 자동 입력
+    } else {
+        extraFeeInput.value = 0;
+    }
+
+    // 3. 하단 표(settlementTargetList)에 원본 데이터 한 줄 생성 (중요!)
+    const targetList = document.getElementById('settlementTargetList');
+    targetList.innerHTML = ""; // 기존 내용 비우기
+
+    const tr = document.createElement('tr');
+    tr.className = 'text-center align-middle';
+    
+    // 모달을 열 때는 원본 시료명을 그대로 표시하여 확인 가능하게 함
+    tr.innerHTML = `
+        <td>${bizRow.date || '-'}</td>
+        <td>${qtRow.field_tester || '-'}</td>
+        <td>현장시험</td>
+        <td class="text-start">${qtRow.builder || '-'}</td>
+        <td class="text-start" id="display_specimen">${originalSpecimen}</td> <td>1</td>
+        <td class="text-end">${Number(qtRow.supply_value || 0).toLocaleString()}</td>
+        <td class="text-end text-danger">${Number(extraFeeInput.value).toLocaleString()}</td>
+        <td></td> <td>${qtRow.receipt_code || '-'}</td>
+        <td>${qtRow.sales || '-'}</td>
+        <td><span class="badge bg-secondary">미지급</span></td>
+    `;
+    
+    // 추후 '정산하기' 버튼 클릭 시 참조를 위해 원본 시료명을 데이터 속성에 보관
+    tr.dataset.originalSpecimen = originalSpecimen;
+    targetList.appendChild(tr);
+
+    // 4. 모달 표시
+    const modal = new bootstrap.Modal(document.getElementById('settlementModal'));
+    modal.show();
+}
+// -----------------여기까지 정산하기 모달 창 끝------------
 
 </script>
 </body>

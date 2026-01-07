@@ -683,223 +683,6 @@ def save_csi_wait_data(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-
-
-#--------------------- 여기서 부터 QT 통합-------------------
-# @csrf_exempt
-# def fetch_combined_data(request):
-#     try:
-#         # 1. 파라미터 수집 (team 파라미터 추가)
-#         if request.method == 'POST' and request.body:
-#             try:
-#                 import json
-#                 data = json.loads(request.body)
-#                 start_date = data.get('start', '').strip()
-#                 end_date = data.get('end', '').strip()
-#                 team_filter = data.get('team', '전체').strip() # [추가] 팀 정보
-#                 search_query = data.get('text', '').strip()
-#                 raw_type = data.get('type', '').strip()
-#             except Exception:
-#                 start_date = end_date = team_filter = search_query = raw_type = ""
-#         else:
-#             start_date = request.GET.get('start', '').strip()
-#             end_date = request.GET.get('end', '').strip()
-#             team_filter = request.GET.get('team', '전체').strip() # [추가] 팀 정보
-#             search_query = request.GET.get('text', '').strip()
-#             raw_type = request.GET.get('type', '').strip()
-
-#         # 2. 타입 변환
-#         search_type = '사업명'
-#         if raw_type == 'client':
-#             search_type = '의뢰기관명'
-#         elif raw_type == 'project':
-#             search_type = '사업명'
-#         elif raw_type == 'req_code': 
-#             search_type = '의뢰번호'
-
-#         # 디버깅 출력 (팀 정보 포함)
-#         print(f"DEBUG: 시작일={start_date}, 종료일={end_date}, 팀={team_filter}, 검색어={search_query}, 타입={search_type}")
-
-#         # 3. MySQL: 조건부 쿼리 생성
-#         where_clauses = []
-#         params = []
-
-#         # [날짜 조건]
-#         if start_date and end_date:
-#             where_clauses.append("r.배정일자 BETWEEN %s AND %s")
-#             params.extend([f"{start_date} 00:00:00", f"{end_date} 23:59:59"])
-
-#         # [팀별 필터 조건 추가] 
-#         # team_filter가 '전체'가 아닐 경우에만 담당자 컬럼에서 해당 팀을 검색합니다.
-#         if team_filter and team_filter != '전체':
-#             where_clauses.append("r.담당자 LIKE %s")
-#             params.append(f"%{team_filter}%")
-
-#         # [검색어 조건]
-#         if search_query:
-#             if search_type == '의뢰번호':
-#                 where_clauses.append("r.의뢰번호 LIKE %s")
-#                 params.append(f"%{search_query}%")
-#             elif search_type == '의뢰기관명':
-#                 where_clauses.append("r.의뢰기관명 LIKE %s")
-#                 params.append(f"%{search_query}%")
-#             elif search_type == '사업명':
-#                 where_clauses.append("r.사업명 LIKE %s")
-#                 params.append(f"%{search_query}%")
-#             else:
-#                 where_clauses.append("(r.의뢰번호 LIKE %s OR r.의뢰기관명 LIKE %s OR r.사업명 LIKE %s)")
-#                 params.extend([f"%{search_query}%"] * 3)
-
-#         # 최종 WHERE 절 합성
-#         where_sentence = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-
-#         mysql_query = f"""
-#             SELECT r.*, i.성적서번호,i.발급일자,r.미인정 
-#             FROM csi_receipts r 
-#             LEFT JOIN csi_issue_results i ON r.의뢰번호 = i.의뢰번호 
-#             {where_sentence}
-#             ORDER BY r.담당자 ASC LIMIT 5000
-#         """
-
-#         with connections['default'].cursor() as mysql_cursor:
-#             mysql_cursor.execute(mysql_query, params)
-#             columns = [col[0] for col in mysql_cursor.description]
-#             mysql_rows = [dict(zip(columns, row)) for row in mysql_cursor.fetchall()]
-
-#         # 4. 의뢰번호 추출 및 MSSQL 데이터 매칭 (기존 로직 유지)
-#         req_codes = [str(row['의뢰번호']).strip() for row in mysql_rows if row.get('의뢰번호')]
-#         mssql_dict = {}
-
-#         if req_codes:
-#             chunk_size = 1000
-#             with connections['mssql'].cursor() as mssql_cursor:
-#                 for i in range(0, len(req_codes), chunk_size):
-#                     chunk = req_codes[i : i + chunk_size]
-#                     placeholders = ', '.join(['%s'] * len(chunk))
-                    
-#                     mssql_query = f"""
-#                         SELECT 
-#                             a.sales, a.request_code, a.receipt_csi_code, a.receipt_code, b.completion_day, a.save_date, 
-#                             b.builder, b.construction, c.specimen, d.supply_value, d.vat,
-#                             e.deposit_day, e.deposit, f.issue_date, f.company
-#                         FROM dbo.Receipt a
-#                         LEFT JOIN dbo.Customer b     ON a.receipt_code = b.receipt_code
-#                         LEFT JOIN dbo.Specimen_info c ON a.receipt_code = c.receipt_code
-#                         LEFT JOIN dbo.Estimate d      ON a.receipt_code = d.receipt_code
-#                         LEFT JOIN dbo.Deposit e       ON a.receipt_code = e.receipt_code
-#                         LEFT JOIN dbo.Tax_Manager f   ON a.receipt_code = f.receipt_code
-#                         WHERE a.request_code IN ({placeholders})
-#                     """
-#                     mssql_cursor.execute(mssql_query, chunk)
-#                     m_cols = [col[0] for col in mssql_cursor.description]
-#                     for m_row in mssql_cursor.fetchall():
-#                         m_item = dict(zip(m_cols, m_row))
-#                         mssql_dict[str(m_item['request_code']).strip()] = m_item
-
-#         # 5. 최종 데이터 합체 (기존 코드 유지)
-#         final_results = []
-#         for row in mysql_rows:
-#             req_no = str(row.get('의뢰번호', '')).strip()
-#             ms_info = mssql_dict.get(req_no, {})
-            
-#             # [핵심 변경] MySQL 의뢰번호가 QT-로 시작하면 이를 QT번호로 사용
-#             if req_no.startswith('QT-'):
-#                 display_qt_no = req_no
-#             else:
-#                 display_qt_no = ms_info.get('receipt_code', '-')         
-
-#             final_results.append({
-#                 "담당자": row.get('담당자', ''),
-#                 "영업구분": row.get('영업구분', ''),
-#                 "의뢰번호": req_no,
-#                 "접수일시": str(row.get('접수일시', '')),
-#                 "접수번호": ms_info.get('receipt_csi_code', '-'),
-#                 # "QT번호": ms_info.get('receipt_code', '-'),
-#                 "QT번호": display_qt_no, # 수정된 변수 적용
-#                 "성적서번호": row.get('성적서번호', '-'),
-#                 "발급일자": str(row.get('발급일자')) if row.get('발급일자') else "",
-#                 "의뢰기관명": row.get('의뢰기관명', ''),
-#                 "사업명": ms_info.get('construction', row.get('사업명', '')),
-#                 "봉인명": ms_info.get('specimen', '-'),
-#                 "준공예정일": str(ms_info.get('completion_day')) if ms_info.get('completion_day') else "",
-#                 "실접수일": str(ms_info.get('save_date')) if ms_info.get('save_date') else "",
-#                 "공급가액": ms_info.get('supply_value', 0),
-#                 "부가세": ms_info.get('vat', 0),
-#                 "입금일": ms_info.get('deposit_day', 0),
-#                 "입금액": ms_info.get('deposit', 0),
-#                 "계산서발행일": str(ms_info.get('issue_date')),
-#                 "계산서발행회사명": ms_info.get('company', '-'),
-#                 "미인정": row.get('미인정', '') if ms_info.get('issue_date') else ""
-#             })
-
-#         # [추가] 6. 통계 집계 로직
-#         stats = {}
-#         teams = ['1팀', '2팀', '3팀', '4팀', '5팀', '6팀']
-        
-#         print("\n" + ">>>" * 20)
-#         print(" [실시간 집계 추적 시작]")
-        
-#         for idx, res in enumerate(final_results):
-#             # 1. 원본 데이터 확인
-#             raw_name = res.get('영업구분', '')
-#             raw_manager = res.get('담당자', '')
-#             raw_price = res.get('공급가액', 0)
-#             req_no = res.get('의뢰번호', '번호없음')
-
-#             # 2. 이름 결정 (영업구분이 우선, 없으면 담당자)
-#             name = (raw_name or raw_manager or '').strip()
-            
-#             # 3. 금액 변환 과정 추적
-#             try:
-#                 # 숫자가 아닌 문자(콤마 등)가 섞였을 때를 대비
-#                 clean_price = str(raw_price).replace(',', '')
-#                 price = int(float(clean_price))
-#             except:
-#                 price = 0
-
-#             # 4. 팀 판별 과정 추적
-#             target_team = "미분류"
-#             for t in teams:
-#                 if t in str(raw_manager):
-#                     target_team = t
-#                     break
-
-#             # 5. 인정/미인정 판별
-#             is_unconfirmed = True if res.get('미인정') else False
-#             type_key = "미인정건" if is_unconfirmed else "인정건"
-
-#             # --- [터미널 실시간 출력] ---
-#             # 모든 행을 출력하면 너무 많으니, 처음 20개 정도만 보거나 
-#             # 금액이 있는 경우만 골라서 출력하여 흐름을 확인합니다.
-#             if price > 0:
-#                 print(f" -> [{req_no}] 이름:{name} | 팀:{target_team} | {type_key} | 금액:{price:,}원 >> [집계추가]")
-#             else:
-#                 # 금액이 0원인 것들은 왜 0원인지 확인
-#                 print(f" -> [{req_no}] 집계제외(금액0): {name} | 원본금액데이터:{raw_price}")
-
-#             # 6. 실제 데이터 누적
-#             if not name: continue
-            
-#             if name not in stats:
-#                 stats[name] = {t: {"인정건": {"금액": 0, "건수": 0}, "미인정건": {"금액": 0, "건수": 0}} for t in teams}
-
-#             if target_team in teams:
-#                 stats[name][target_team][type_key]["금액"] += price
-#                 stats[name][target_team][type_key]["건수"] += 1
-
-#         print(f" [최종 결과] 생성된 담당자 수: {len(stats)}명")
-#         print("<<<" * 20 + "\n")
-#         print(f"DEBUG: 최종 전달할 담당자 수: {len(stats)}명")
-#         return JsonResponse({'status': 'success', 'data': final_results, 'stats': stats})
-
-#     except Exception as e:
-#         import traceback
-#         print(traceback.format_exc())
-#         return JsonResponse({'status': 'error', 'message': str(e)})
-
-
-
-
 # 여기서부터 테스트용 입니다(발급건수 카운터용)
 @csrf_exempt
 def fetch_combined_data(request):
@@ -1163,11 +946,21 @@ def get_estimate_detail(request):
         print(f"[LOG] 에러 발생: {str(e)}")
         return JsonResponse({'status': 'error', 'message': str(e)})
     
-#1. 여기서부터 현장팀 정산 페이지 입니다.
+    
+#----------1. 여기서부터 현장팀 정산 페이지 입니다.-------------
 def field_payment_view(request):
+    # 1. 허용된 아이디 리스트 설정
+    allowed_ids = ["admin_work", "admin_home"]
+
+    # 2. 권한 체크: 로그인 여부 및 아이디 확인
+    if not request.user.is_authenticated or request.user.username not in allowed_ids:
+        # 권한이 없을 경우 메시지와 함께 홈으로 리다이렉트
+        messages.error(request, "해당 페이지에 접근할 권한이 없습니다.")
+        return redirect('/')
+
     now = datetime.now()
     
-    # 템플릿 에러(|split)를 방지하기 위해 월 리스트 생성
+    # 템플릿 에러를 방지하기 위해 생성한 월 리스트
     month_list = range(1, 13)
     
     context = {
@@ -1178,428 +971,6 @@ def field_payment_view(request):
     }
     return render(request, 'field_payment.html', context)
 
-# 2. 두번째 작업
-
-# def bizmeka_sync(request):
-#     target_year = request.GET.get('year')
-#     target_month = request.GET.get('month')
-    
-#     # [1] 드라이버 및 옵션 설정
-#     chrome_options = Options()
-#     chrome_options.add_argument("--start-maximized")
-#     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    
-#     try:
-#         # 1. 로그인 및 알림창 처리
-#         driver.get("https://ezportal.bizmeka.com/")
-#         wait = WebDriverWait(driver, 15)
-        
-#         driver.find_element(By.ID, "username").send_keys("k200335")
-#         driver.find_element(By.ID, "password").send_keys("k*1800*92*" + Keys.ENTER)
-        
-#         # 로그인 완료 대기
-#         start_time = time.time()
-#         while time.time() - start_time < 300:
-#             try:
-#                 driver.switch_to.alert.accept()
-#             except: pass
-#             if "main" in driver.current_url: break
-#             time.sleep(1)
-
-#         # 2. 일정 페이지 이동 및 월간 뷰 설정
-#         driver.get("https://ezgroupware.bizmeka.com/groupware/planner/calendar.do")
-#         time.sleep(3)
-#         wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "fc-month-button"))).click()
-#         time.sleep(1)
-
-#         # 3. [핵심] 선택 버튼 없이 '이전' 버튼으로만 이동
-#         # [3] 12월 이동 완료 후 (이전 버튼 로직은 그대로 유지)
-#         while True:
-#             center_title = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".fc-center h2"))).text.strip()
-#             if target_year in center_title and f"{int(target_month)}월" in center_title:
-#                 break
-#             prev_btn = driver.find_element(By.CLASS_NAME, "fc-prev-button")
-#             driver.execute_script("arguments[0].click();", prev_btn)
-#             time.sleep(1.5)
-
-#         # [4] 데이터 수집 (날짜 비교 없이 화면에 보이는 모든 일정을 긁음)
-#         time.sleep(3) # 달력이 완전히 멈출 때까지 충분히 대기
-        
-#         # 1. 화면에 펼쳐져 있는 모든 일정 박스를 다 가져옵니다.
-#         # span.fc-title 대신 div.fc-content를 사용하여 "양지훈/시료수거..." 전체 텍스트 확보
-#         all_events = driver.find_elements(By.CSS_SELECTOR, ".fc-content")
-        
-#         final_list = []
-#         for ev in all_events:
-#             txt = ev.text.replace('\n', ' ').strip()
-#             if txt:
-#                 final_list.append({"content": txt})
-
-#         # 2. '더보기(+N)' 버튼이 있는 날짜들만 골라내어 클릭 후 팝업 데이터 수집
-#         more_links = driver.find_elements(By.CSS_SELECTOR, ".fc-more")
-#         for link in more_links:
-#             try:
-#                 driver.execute_script("arguments[0].click();", link)
-#                 time.sleep(0.8)
-                
-#                 # 팝업창 내의 일정들 추가 수집
-#                 pop_events = driver.find_elements(By.CSS_SELECTOR, ".fc-more-popover .fc-content")
-#                 for p_ev in pop_events:
-#                     p_txt = p_ev.text.replace('\n', ' ').strip()
-#                     if p_txt:
-#                         final_list.append({"content": p_txt})
-                
-#                 # 팝업 닫기
-#                 driver.find_element(By.CSS_SELECTOR, ".fc-more-popover .fc-close").click()
-#                 time.sleep(0.3)
-#             except: pass
-
-#         # 최종 반환 (이제 0개가 나올 수 없습니다)
-#         return JsonResponse({
-#             "status": "success", 
-#             "total_count": len(final_list), 
-#             "data": final_list
-#         })
-
-#     except Exception as e:
-#         return JsonResponse({"status": "error", "message": f"시스템 에러: {str(e)}"})
-#     finally:
-#         driver.quit() # 드라이버 종료를 finally에 두어 에러 시에도 창이 닫히도록 함
-
-
-
-# 여기서 부터 테스트코드(현재까지 날짜빼고 완성된코드임)
-# def bizmeka_sync(request):
-#     target_year = request.GET.get('year')
-#     target_month = request.GET.get('month')
-    
-#     # [1] 드라이버 및 옵션 설정
-#     chrome_options = Options()
-#     chrome_options.add_argument("--start-maximized")
-#     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    
-#     try:
-#         # 1. 로그인 처리
-#         driver.get("https://ezportal.bizmeka.com/")
-#         wait = WebDriverWait(driver, 15)
-        
-#         driver.find_element(By.ID, "username").send_keys("k200335")
-#         driver.find_element(By.ID, "password").send_keys("k*1800*92*" + Keys.ENTER)
-        
-#         # 알림창 처리 및 메인 진입 대기
-#         start_time = time.time()
-#         while time.time() - start_time < 300:
-#             try:
-#                 driver.switch_to.alert.accept()
-#             except: pass
-#             if "main" in driver.current_url: break
-#             time.sleep(1)
-
-#         # 2. 일정 페이지 이동 및 월간 뷰 고정
-#         driver.get("https://ezgroupware.bizmeka.com/groupware/planner/calendar.do")
-#         time.sleep(3)
-#         wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "fc-month-button"))).click()
-#         time.sleep(1)
-
-#         # 3. [이동] '이전' 버튼으로 목표 달 도달 (선택 버튼 무시)
-#         while True:
-#             center_title = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".fc-center h2"))).text.strip()
-#             if target_year in center_title and f"{int(target_month)}월" in center_title:
-#                 break
-            
-#             prev_btn = driver.find_element(By.CLASS_NAME, "fc-prev-button")
-#             driver.execute_script("arguments[0].click();", prev_btn)
-#             time.sleep(1.5)
-
-#         # 4. [수집] 이미 로딩된 데이터 싹쓸이 (textContent 활용)
-#         time.sleep(2) 
-#         final_list = []
-
-#         # 4-1. 화면에 보이는 기본 일정 수집
-#         events = driver.find_elements(By.CSS_SELECTOR, ".fc-content-skeleton .fc-content")
-#         for ev in events:
-#             try:
-#                 # 텍스트를 강제로 긁어오는 textContent
-#                 raw_text = ev.get_attribute("textContent").replace('\n', ' ').strip()
-#                 parent_td = ev.find_element(By.XPATH, "./ancestor::td")
-#                 target_date = parent_td.get_attribute("data-date")
-                
-#                 if raw_text:
-#                     # [터미널 확인용] 데이터가 긁히고 있는지 실시간으로 출력합니다.
-#                     print(f">>> [기본수집] 날짜: {target_date} | 내용: {raw_text[:30]}...")
-                    
-#                     # 화면(image_020fa0.png)의 '날짜', '일정 상세내용' 필드에 정확히 매칭
-#                     final_list.append({
-#                         "date": target_date,   
-#                         "content": raw_text    
-#                     })
-#             except: pass
-
-#         # 4-2. '+N' 더보기 버튼 내 숨겨진 일정 수집
-#         more_links = driver.find_elements(By.CSS_SELECTOR, ".fc-more")
-#         for link in more_links:
-#             try:
-#                 p_date = link.find_element(By.XPATH, "./ancestor::td").get_attribute("data-date")
-#                 driver.execute_script("arguments[0].click();", link)
-#                 time.sleep(0.5)
-                
-#                 pop_items = driver.find_elements(By.CSS_SELECTOR, ".fc-more-popover .fc-content")
-#                 for p_item in pop_items:
-#                     p_txt = p_item.get_attribute("textContent").replace('\n', ' ').strip()
-#                     if p_txt:
-#                         # [터미널 확인용] 더보기 내부 데이터 수집 현황 출력
-#                         print(f"  └─ [더보기수집] 날짜: {p_date} | 내용: {p_txt[:30]}...")
-                        
-#                         final_list.append({
-#                             "date": p_date,
-#                             "content": p_txt
-#                         })
-                
-#                 driver.find_element(By.CSS_SELECTOR, ".fc-more-popover .fc-close").click()
-#                 time.sleep(0.2)
-#             except: pass
-
-#         # 최종 로그 출력
-#         print(f"=== 수집 완료! 총 {len(final_list)}개의 데이터를 찾았습니다. ===")
-
-#         # [핵심] JSON 반환 시 Key 이름을 화면 JS와 100% 일치시켜야 함
-#         return JsonResponse({
-#             "status": "success", 
-#             "total_count": len(final_list), 
-#             "data": final_list  # 여기서 보내는 'data'가 JS의 item.date, item.content로 연결됨
-#         })
-
-#     except Exception as e:
-#         print(f"!!! 에러 발생: {str(e)}") # 에러 내용을 터미널에 출력
-#         return JsonResponse({"status": "error", "message": f"시스템 에러: {str(e)}"})
-    # finally:
-    #     driver.quit()
-    
-    
-# 여기서부터 세번째 시작
-
-# def bizmeka_sync(request):
-#     target_year = request.GET.get('year')
-#     target_month = request.GET.get('month')
-    
-#     # [1] 드라이버 및 옵션 설정
-#     chrome_options = Options()
-#     chrome_options.add_argument("--start-maximized")
-#     # chrome_options.add_argument("--headless") # 필요 시 주석 해제
-#     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    
-#     try:
-#         # 1. 로그인 처리
-#         driver.get("https://ezportal.bizmeka.com/")
-#         wait = WebDriverWait(driver, 15)
-        
-#         driver.find_element(By.ID, "username").send_keys("k200335")
-#         driver.find_element(By.ID, "password").send_keys("k*1800*92*" + Keys.ENTER)
-        
-#         # 알림창 처리 및 메인 진입 대기
-#         start_time = time.time()
-#         while time.time() - start_time < 30:
-#             try:
-#                 driver.switch_to.alert.accept()
-#             except: pass
-#             if "main" in driver.current_url: break
-#             time.sleep(1)
-
-#         # 2. 일정 페이지 이동 및 월간 뷰 고정
-#         driver.get("https://ezgroupware.bizmeka.com/groupware/planner/calendar.do")
-#         time.sleep(3)
-#         wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "fc-month-button"))).click()
-#         time.sleep(1)
-
-#         # 3. [이동] 목표 년/월 도달
-#         while True:
-#             center_title = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".fc-center h2"))).text.strip()
-#             if target_year in center_title and f"{int(target_month)}월" in center_title:
-#                 break
-            
-#             prev_btn = driver.find_element(By.CLASS_NAME, "fc-prev-button")
-#             driver.execute_script("arguments[0].click();", prev_btn)
-#             time.sleep(1.5)
-
-#         # 4. [수집] 데이터 파싱 시작
-#         time.sleep(2) 
-#         final_list = []
-
-#         # 주차별 스켈레톤(fc-content-skeleton) 테이블 순회
-#         weeks = driver.find_elements(By.CLASS_NAME, "fc-content-skeleton")
-
-#         for week in weeks:
-#             # 해당 주차의 날짜 헤더(data-date) 추출
-#             date_cells = week.find_elements(By.CSS_SELECTOR, "thead td.fc-day-number")
-#             week_dates = [d.get_attribute("data-date") for d in date_cells]
-            
-#             # 해당 주차의 일정 행(tbody tr) 순회
-#             event_rows = week.find_elements(By.CSS_SELECTOR, "tbody tr")
-            
-#             for row in event_rows:
-#                 cells = row.find_elements(By.TAG_NAME, "td")
-                
-#                 # FullCalendar 레이아웃 대응을 위한 인덱스 수동 관리
-#                 curr_date_idx = 0
-#                 for cell in cells:
-#                     # 'fc-event-container'가 아니거나 일정이 없으면 인덱스만 체크하고 넘어감
-#                     events = cell.find_elements(By.CLASS_NAME, "fc-content")
-                    
-#                     if events:
-#                         for ev in events:
-#                             # 텍스트 추출 (textContent 사용)
-#                             raw_text = ev.get_attribute("textContent").replace('\n', ' ').strip()
-                            
-#                             if raw_text and curr_date_idx < len(week_dates):
-#                                 target_date = week_dates[curr_date_idx]
-                                
-#                                 print(f">>> [매칭수집] 날짜: {target_date} | 내용: {raw_text[:30]}...")
-#                                 final_list.append({
-#                                     "date": target_date,
-#                                     "content": raw_text
-#                                 })
-                    
-#                     # td가 차지하는 칸(colspan)만큼 날짜 인덱스 이동
-#                     colspan = cell.get_attribute("colspan")
-#                     curr_date_idx += int(colspan) if colspan else 1
-
-#         # 5. [추가] '+N 더보기' 버튼 내 숨겨진 일정 수집
-#         more_links = driver.find_elements(By.CLASS_NAME, "fc-more")
-#         for link in more_links:
-#             try:
-#                 # 더보기 버튼이 속한 td의 날짜 가져오기
-#                 p_date = link.find_element(By.XPATH, "./ancestor::td").get_attribute("data-date")
-                
-#                 driver.execute_script("arguments[0].click();", link)
-#                 time.sleep(0.5)
-                
-#                 pop_items = driver.find_elements(By.CSS_SELECTOR, ".fc-more-popover .fc-content")
-#                 for p_item in pop_items:
-#                     p_txt = p_item.get_attribute("textContent").replace('\n', ' ').strip()
-#                     if p_txt:
-#                         final_list.append({"date": p_date, "content": p_txt})
-                
-#                 # 팝업 닫기 (요소가 있을 때만 클릭)
-#                 close_btns = driver.find_elements(By.CSS_SELECTOR, ".fc-more-popover .fc-close")
-#                 if close_btns:
-#                     close_btns[0].click()
-#                 time.sleep(0.2)
-#             except: pass
-
-#         print(f"=== 수집 완료! 총 {len(final_list)}개 ===")
-
-#         return JsonResponse({
-#             "status": "success",
-#             "total_count": len(final_list),
-#             "data": final_list
-#         })
-
-#     except Exception as e:
-#         print(f"!!! 에러 발생: {str(e)}")
-#         return JsonResponse({"status": "error", "message": f"시스템 에러: {str(e)}"})
-#     finally:
-#         driver.quit()
-
-
-# 여기부터 네번째 시작
-# def bizmeka_sync(request):
-#     target_year = request.GET.get('year')
-#     target_month = request.GET.get('month')
-    
-#     chrome_options = Options()
-#     chrome_options.add_argument("--start-maximized")
-#     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-    
-#     try:
-#         # 1. 로그인 및 일정 페이지 이동
-#         driver.get("https://ezportal.bizmeka.com/")
-#         wait = WebDriverWait(driver, 15)
-#         driver.find_element(By.ID, "username").send_keys("k200335")
-#         driver.find_element(By.ID, "password").send_keys("k*1800*92*" + Keys.ENTER)
-        
-#         # 알림창 무시 및 메인 진입 확인
-#         start_time = time.time()
-#         while time.time() - start_time < 30:
-#             try: driver.switch_to.alert.accept()
-#             except: pass
-#             if "main" in driver.current_url: break
-#             time.sleep(1)
-
-#         driver.get("https://ezgroupware.bizmeka.com/groupware/planner/calendar.do")
-#         time.sleep(3)
-#         wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "fc-month-button"))).click()
-
-#         # 2. 목표 년/월 이동
-#         while True:
-#             center_title = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".fc-center h2"))).text.strip()
-#             if target_year in center_title and f"{int(target_month)}월" in center_title:
-#                 break
-#             driver.execute_script("arguments[0].click();", driver.find_element(By.CLASS_NAME, "fc-prev-button"))
-#             time.sleep(1.5)
-
-#         # 3. [핵심] 좌표 기반 날짜 매칭 수집
-#         time.sleep(2) 
-#         final_list = []
-        
-#         # 주차별 '스켈레톤' 테이블을 하나씩 돕니다.
-#         weeks = driver.find_elements(By.CLASS_NAME, "fc-content-skeleton")
-
-#         for week in weeks:
-#             # 해당 주차의 날짜 헤더(7개 칸)를 먼저 확보합니다.
-#             date_headers = week.find_elements(By.CSS_SELECTOR, "thead td.fc-day-number")
-#             week_dates = [d.get_attribute("data-date") for d in date_headers] # ['2025-12-01', '2025-12-02'...]
-
-#             # 일정들이 들어있는 tbody의 각 행(tr)을 분석합니다.
-#             rows = week.find_elements(By.CSS_SELECTOR, "tbody tr")
-#             for row in rows:
-#                 cells = row.find_elements(By.TAG_NAME, "td")
-                
-#                 # FullCalendar 구조 특성상, 각 td가 실제 몇 번째 열(0~6)인지가 날짜입니다.
-#                 # 'cellIndex'를 사용하면 rowspan/colspan에 상관없이 실제 열 위치를 알 수 있습니다.
-#                 for cell in cells:
-#                     events = cell.find_elements(By.CLASS_NAME, "fc-content")
-#                     if events:
-#                         # 이 칸이 시각적으로 몇 번째 열인지 브라우저에게 직접 물어봅니다.
-#                         col_idx = driver.execute_script("return arguments[0].cellIndex;", cell)
-                        
-#                         for ev in events:
-#                             raw_text = ev.get_attribute("textContent").strip()
-#                             if raw_text and col_idx < len(week_dates):
-#                                 target_date = week_dates[col_idx]
-#                                 print(f">>> [매칭완료] 날짜:{target_date} | 내용:{raw_text[:20]}...")
-#                                 final_list.append({
-#                                     "date": target_date,
-#                                     "content": raw_text
-#                                 })
-
-#         # 4. '+N' 더보기 버튼 처리
-#         more_links = driver.find_elements(By.CLASS_NAME, "fc-more")
-#         for link in more_links:
-#             try:
-#                 # 더보기 버튼은 부모 td에 data-date가 직접 붙어있는 경우가 많습니다.
-#                 p_date = link.find_element(By.XPATH, "./ancestor::td").get_attribute("data-date")
-                
-#                 driver.execute_script("arguments[0].click();", link)
-#                 time.sleep(0.6)
-                
-#                 pop_items = driver.find_elements(By.CSS_SELECTOR, ".fc-more-popover .fc-content")
-#                 for p_item in pop_items:
-#                     p_txt = p_item.get_attribute("textContent").strip()
-#                     if p_txt:
-#                         final_list.append({"date": p_date, "content": p_txt})
-                
-#                 # 팝업 닫기
-#                 close_btn = driver.find_elements(By.CSS_SELECTOR, ".fc-more-popover .fc-close")
-#                 if close_btn: close_btn[0].click()
-#                 time.sleep(0.2)
-#             except: pass
-
-#         return JsonResponse({"status": "success", "total_count": len(final_list), "data": final_list})
-
-#     except Exception as e:
-#         return JsonResponse({"status": "error", "message": str(e)})
-#     finally:
-#         driver.quit()
 
 # 다섯번째 수정
 
@@ -1829,3 +1200,178 @@ def get_qt_db_data(request):
     except Exception as e:
         print(f"[에러발생] {str(e)}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+
+    # ---- 여기서 부터 현장팀 정산 관련 db 불러오기
+def get_payment_detail(request):
+    # 프론트엔드에서 넘어온 번호 (C251205029 등)
+    # 변수명은 receipt_no지만 실제로는 receipt_code 값이 담겨 있습니다.
+    receipt_no = request.GET.get('receipt_no', '').strip()
+    
+    print(f"\n[LOG] 결제 상세 요청 수신 (QT번호): {receipt_no}")
+
+    if not receipt_no:
+        return JsonResponse({'success': False, 'message': '번호가 누락되었습니다.'})
+
+    try:
+        with connections['mssql'].cursor() as cursor:
+            # ⭐ 수정: 첫 번째 쿼리(find_qt_query)를 삭제하고 바로 사용합니다.
+            qt_no = receipt_no 
+
+            # 1. 견적 상세 리스트 조회
+            detail_query = """
+                SELECT item_name as 시험항목, count as 수량, ei_cost as 단가, ei_price as 금액
+                FROM dbo.Examination_Item
+                WHERE receipt_code = %s
+            """
+            cursor.execute(detail_query, [qt_no])
+            detail_columns = [col[0] for col in cursor.description]
+            estimate_items = [dict(zip(detail_columns, row)) for row in cursor.fetchall()]
+
+            # 2. 금액 요약 데이터 조회
+            summary_query = """
+                SELECT 
+                    std_cost as base_price, basic_qty as base_cnt, basic as base_fee,
+                    process_qty as info_cnt, process as info_fee, commission as cond_fee,
+                    sample as specimen_fee, [tran_set] as travel_type, [tran] as travel_fee,
+                    impossible as no_discount_amt, possible as yes_discount_amt,
+                    rate as discount_rate, discount as fixed_discount_amt,
+                    supply_value as supply_value, vat as vat
+                FROM dbo.Estimate
+                WHERE receipt_code = %s
+            """
+            cursor.execute(summary_query, [qt_no])
+            summary_columns = [col[0] for col in cursor.description]
+            summary_row = cursor.fetchone()
+            
+            # 데이터가 없을 경우를 대비한 처리
+            summary_data = dict(zip(summary_columns, summary_row)) if summary_row else {}
+
+            # 로그 추가 (데이터 확인용)
+            print(f"[LOG] 조회 결과 - 상세: {len(estimate_items)}건, 요약데이터: {'성공' if summary_data else '없음'}")
+
+        # 결과 반환
+        return JsonResponse({
+            'success': True,
+            'qt_no': qt_no,
+            'estimate_items': estimate_items,
+            'summary': summary_data
+        })
+        
+    except Exception as e:
+        print(f"[LOG] 서버 에러 발생: {str(e)}")
+        return JsonResponse({'success': False, 'message': f"서버 내부 오류: {str(e)}"})
+    
+# ------------------------여기서부터 완료건 보기 관련----------------------------
+def get_finished_data(request):
+    year = request.GET.get('year')
+    month = request.GET.get('month')
+    manager = request.GET.get('manager')
+
+    try:
+        # MySQL (kcqt_qyalit) 연결 사용
+        with connections['default'].cursor() as cursor:
+            # 1. 기본 쿼리 작성 (요청하신 헤더 순서대로 SELECT)
+            query = """
+                SELECT 
+                    ID, 시험수거일, 현장담당, 구분, 의뢰업체명, 시료명, 
+                    공수, 출장비, 추가, 비고, 접수번호, 영업담당, 
+                    시료채취자, 현장시험자, 지급여부, 순번
+                FROM winapps_현장팀
+                WHERE 시험수거일 LIKE %s
+            """
+            
+            # 날짜 필터링 (YYYY-MM 형식)
+            date_filter = f"{year}-"
+            if month != 'all':
+                date_filter += f"{int(month):02d}%"
+            else:
+                date_filter += "%"
+            
+            params = [date_filter]
+
+            # 2. 담당자 필터링 추가
+            if manager != '전체':
+                query += " AND 현장담당 = %s"
+                params.append(manager)
+
+            cursor.execute(query, params)
+            
+            # 3. 결과 데이터를 딕셔너리 형태로 변환
+            columns = [col[0] for col in cursor.description]
+            data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+            return JsonResponse({'success': True, 'data': data})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+    
+
+# 드롭다운 DB연동
+def get_item_standards(request):
+    with connection.cursor() as cursor:
+        # DB 테이블에서 기준 데이터 조회
+        cursor.execute("""
+            SELECT ID, 시험종목, 기본, 단가, 추가 
+            FROM kcqt_qyalit.winapps_용역비기준
+        """)
+        rows = cursor.fetchall()
+        
+    # 자바스크립트에서 쓰기 편하게 리스트 형태로 변환
+    data = []
+    for row in rows:
+        data.append({
+            'id': row[0],
+            'name': row[1],
+            'base': row[2],   # 기본(공수)
+            'price': row[3],  # 단가(출장비)
+            'extra': row[4]   # 추가 금액
+        })
+
+    return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def save_settlement_data(request):
+    if request.method == 'POST':
+        try:
+            data_list = json.loads(request.body)
+            
+            with connection.cursor() as cursor:
+                for item in data_list:
+                    # 1. 날짜 형식 변환: 마침표(.)가 들어오면 하이픈(-)으로 변경하여 저장
+                    raw_date = item.get('시험수거일', '')
+                    # 만약 2025.12.01 처럼 점이 찍혀 들어와도 2025-12-01로 바꿉니다.
+                    clean_date = str(raw_date).replace('.', '-') if raw_date else ''
+                    
+                    # 2. 콤마(,) 제거 후 숫자로 변환
+                    travel_fee = int(str(item.get('출장비', 0)).replace(',', ''))
+                    extra_fee = int(str(item.get('추가', 0)).replace(',', ''))
+                    
+                    sql = """
+                        INSERT INTO kcqt_qyalit.winapps_현장팀 (
+                            시험수거일, 현장담당, 구분, 의뢰업체명, 시료명, 
+                            공수, 출장비, 추가, 비고, 접수번호, 영업담당, 지급여부
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    params = (
+                        clean_date,           # 하이픈 형식 (예: 2025-12-01)
+                        item.get('현장담당'),
+                        item.get('구분'),
+                        item.get('의뢰업체명'),
+                        item.get('시료명'),
+                        item.get('공수'),
+                        travel_fee,
+                        extra_fee,
+                        item.get('비고'),
+                        item.get('접수번호'),
+                        item.get('영업담당'),
+                        '미지급'               
+                    )
+                    cursor.execute(sql, params)
+            
+            return JsonResponse({'status': 'success', 'message': '기존 DB와 동일하게 하이픈(-) 형식으로 저장되었습니다.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    return JsonResponse({'status': 'error', 'message': 'Invalid Method'}, status=400)
+# ------------------------여기까지가 완료건 보기 관련 끝----------------------------
+

@@ -72,4 +72,12 @@ urlpatterns = [
     path('fetch-csi-wait-data/', views.fetch_csi_wait_data, name='fetch_csi_wait_data'),
     # 2. CSI 성적서 발급대기 정보 DB저장하기
     path('save-csi-wait-data/', views.save_csi_wait_data, name='save_csi_wait_data'),
+    # ---- 여기서 부터 현장팀 정산 관련 db 불러오기
+    path('api/get_payment_detail', views.get_payment_detail, name='get_payment_detail'),
+    # ----완료건 보기 중 데이터 불러오기
+    path('api/get_finished_data', views.get_finished_data, name='get_finished_data'),
+    # 드롭다운 DB 연동
+    path('api/get-item-standards/', views.get_item_standards, name='get_item_standards'),
+    # 정산 완료 저장
+    path('api/save-settlement/', views.save_settlement_data, name='save_settlement'),
 ]

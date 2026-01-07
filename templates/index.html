@@ -54,7 +54,9 @@
             </li>
             
             <li class="nav-item"><a class="nav-link" href="#" onclick="checkLogin('/request/')">접수 현황 및 실적 확인</a></li>
-            <li class="nav-item"><a class="nav-link" href="#" onclick="checkLogin('/field_payment/')">현장팀 정산</a></li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" onclick="checkAdminAccess('/field_payment/')">현장팀 정산</a>
+            </li>
             <li class="nav-item"><a class="nav-link" href="#" onclick="checkLogin('/notice/')">공지사항</a></li>
         </ul>
     </div>
@@ -67,28 +69,50 @@
 
 <script>
     // 1. 로그인 여부를 장고 템플릿 태그로 정의 (이게 반드시 있어야 함)
-    const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
+const isAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
 
-    // 2. 일반 메뉴용 함수
-    function checkLogin(targetUrl) {
-        if (isAuthenticated) {
-            location.href = targetUrl;
-        } else {
-            alert("로그인을 해주세요.");
-            document.querySelector('input[name="username"]')?.focus();
-        }
+// 2. 일반 메뉴용 함수
+function checkLogin(targetUrl) {
+    if (isAuthenticated) {
+        location.href = targetUrl;
+    } else {
+        alert("로그인을 해주세요.");
+        document.querySelector('input[name="username"]')?.focus();
+    }
+}
+
+// 3. CSI_접수 전용 팝업 함수
+function openPopup(url) {
+    if (isAuthenticated) {
+        // 새 창 띄우기
+        window.open(url, 'csi_popup', 'width=1300,height=900,scrollbars=yes,resizable=yes');
+    } else {
+        alert("로그인을 해주세요.");
+        document.querySelector('input[name="username"]')?.focus();
+    }
+}
+
+function checkAdminAccess(url) {
+    // 1. 로그인 여부 먼저 확인
+    const isAuthenticated = "{{ user.is_authenticated }}" === "True";
+    const currentUserId = "{{ user.username }}"; // 현재 로그인한 아이디
+    
+    // 2. 허용된 아이디 리스트
+    const allowedIds = ["admin_work", "admin_home"];
+
+    if (!isAuthenticated) {
+        alert("로그인이 필요한 서비스입니다.");
+        location.href = "/login/"; // 로그인 페이지로 유도
+        return;
     }
 
-    // 3. CSI_접수 전용 팝업 함수
-    function openPopup(url) {
-        if (isAuthenticated) {
-            // 새 창 띄우기
-            window.open(url, 'csi_popup', 'width=1300,height=900,scrollbars=yes,resizable=yes');
-        } else {
-            alert("로그인을 해주세요.");
-            document.querySelector('input[name="username"]')?.focus();
-        }
+    // 3. 아이디 권한 확인
+    if (allowedIds.includes(currentUserId)) {
+        location.href = url; // 권한이 있으면 이동
+    } else {
+        alert("해당 메뉴에 대한 접근 권한이 없습니다.");
     }
+}    
 </script>
 </body>
 </html>
