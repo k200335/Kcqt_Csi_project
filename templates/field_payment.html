@@ -372,7 +372,14 @@
                     <div class="d-flex align-items-center gap-2 flex-grow-1 border-start ps-3">
                         <div class="d-flex align-items-center">
                             <span class="fw-bold small me-1 text-nowrap">현장담당:</span>
-                            <input type="text" id="m_edit_manager" class="form-control form-control-sm" style="width: 80px;" placeholder="이름">
+                            <!-- <input type="text" id="m_edit_manager" class="form-control form-control-sm" style="width: 80px;" placeholder="이름"> -->
+                             <select id="m_edit_manager" class="form-select form-select-sm" style="width: 100px;">
+                                <option value="">선택</option>
+                                <option value="위재완">위재완</option>
+                                <option value="양지훈">양지훈</option>
+                                <option value="권석규">권석규</option>
+                                <option value="오범석">오범석</option>
+                            </select>
                         </div>
 
                         <div class="d-flex align-items-center">
@@ -1569,8 +1576,12 @@ function highlightMatchedRows(finishedData) {
 
 // 모달 창 수동변경
 function applyManualChanges() {
-    const newManager = document.getElementById('m_edit_manager').value;
-    const newBuilder = document.getElementById('m_edit_builder').value;
+    // 요소들을 변수에 할당
+    const managerSelect = document.getElementById('m_edit_manager');
+    const builderInput = document.getElementById('m_edit_builder');
+
+    const newManager = managerSelect.value;
+    const newBuilder = builderInput.value;
     
     // 모달 하단 표의 첫 번째 행을 찾습니다.
     const targetRow = document.querySelector('#settlementTargetList tr');
@@ -1580,21 +1591,25 @@ function applyManualChanges() {
         return;
     }
 
-    // 1. 현장담당 업데이트 (2번째 칸)
+    // 1. 현장담당 업데이트 (값이 있을 때만 반영)
     if (newManager) {
         targetRow.cells[1].innerText = newManager;
-        targetRow.cells[1].style.color = '#0d6efd'; // 변경된 건 파란색으로 표시
+        targetRow.cells[1].style.color = '#0d6efd';
         targetRow.cells[1].style.fontWeight = 'bold';
     }
 
-    // 2. 의뢰업체명 업데이트 (4번째 칸)
+    // 2. 의뢰업체명 업데이트 (값이 있을 때만 반영)
     if (newBuilder) {
         targetRow.cells[3].innerText = newBuilder;
         targetRow.cells[3].style.color = '#0d6efd';
         targetRow.cells[3].style.fontWeight = 'bold';
     }
 
-    console.log("현장담당/업체명 수동 변경 완료");
+    // --- [로직 수행 후 입력 도구 초기화] ---
+    managerSelect.value = ""; // 드롭다운 "선택"으로 복구
+    builderInput.value = "";  // 업체명 입력칸 비움
+
+    console.log("현장담당 및 업체명 반영 완료 (초기화 포함)");
 }
 // -----------------여기까지 정산하기 모달 창 끝------------
 

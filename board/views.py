@@ -345,7 +345,7 @@ def fetch_csi_issue_data(request):
 
         chrome_options = Options()
         chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--headless") # 필요시 주석 처리 (창 보기)
+        # chrome_options.add_argument("--headless") # 필요시 주석 처리 (창 보기)
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
         wait = WebDriverWait(driver, 15)
 
@@ -656,11 +656,8 @@ def save_csi_wait_data(request):
                 # 1. 성적서번호 컬럼에는 "승인전" 고정값 입력
                 # 2. 발급일자 컬럼에는 표의 '발급대기일자' 입력
                 sql = """
-                    INSERT INTO csi_issue_results (의뢰번호, 성적서번호, 발급일자)
+                    INSERT IGNORE INTO csi_issue_results (의뢰번호, 성적서번호, 발급일자)
                     VALUES (%s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        성적서번호 = VALUES(성적서번호),
-                        발급일자 = VALUES(발급일자)
                 """
                 
                 # 파라미터 구성
