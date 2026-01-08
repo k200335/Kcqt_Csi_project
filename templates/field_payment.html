@@ -87,6 +87,8 @@
     /* AG-Grid 높이 최적화 */
     .ag-header { min-height: 35px !important; height: 35px !important; }
     .ag-theme-quartz { --ag-grid-size: 4px; --ag-list-item-height: 25px; } /* 행 간격 축소 */
+
+
 </style>
 </head>
 <body>
@@ -367,9 +369,23 @@
                         </div>
                     </div>
 
-                    <div class="d-flex align-items-center flex-grow-1">
-                        <span class="fw-bold small me-2">비고 :</span>
-                        <input type="text" id="m_memo" class="form-control form-control-sm" placeholder="비고 입력">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1 border-start ps-3">
+                        <div class="d-flex align-items-center">
+                            <span class="fw-bold small me-1 text-nowrap">현장담당:</span>
+                            <input type="text" id="m_edit_manager" class="form-control form-control-sm" style="width: 80px;" placeholder="이름">
+                        </div>
+
+                        <div class="d-flex align-items-center">
+                            <span class="fw-bold small me-1 text-nowrap">업체명:</span>
+                            <input type="text" id="m_edit_builder" class="form-control form-control-sm" style="width: 140px;" placeholder="업체명">
+                        </div>
+
+                        <button type="button" onclick="applyManualChanges()" class="btn btn-dark btn-sm fw-bold text-nowrap">변경</button>
+
+                        <div class="d-flex align-items-center flex-grow-1 ms-2">
+                            <span class="fw-bold small me-2 text-nowrap">비고:</span>
+                            <input type="text" id="m_memo" class="form-control form-control-sm" placeholder="비고 입력">
+                        </div>
                     </div>
 
                     <div class="d-flex gap-1">
@@ -442,14 +458,21 @@ const gridOptions = {
         sortable: true, 
         filter: true,           
         floatingFilter: false,
+        cellStyle: { fontSize: '12px' },
         resizable: true
     },
     suppressMovableColumns: true,
     rowSelection: 'multiple',
-    headerHeight: 30,
-    rowHeight: 30,
+    headerHeight: 25,
+    rowHeight: 25,
     rowData: [],
 
+    // [수정] 복잡한 비교 로직을 다 지우고 아래 내용만 남깁니다.
+    rowClassRules: {
+        'highlight-row': (params) => {
+            return params.data && params.data.isCompleted === true;
+        }
+    },
     // [핵심 추가] 셀을 클릭했을 때 실행되는 함수
     onCellClicked: (params) => {
         // 1. 클릭한 컬럼이 '제목(title)'인지 확인
@@ -512,13 +535,14 @@ const dbGridOptions = {
         filter: true,
         resizable: true,
         flex: 0, 
+        cellStyle: { fontSize: '12px' },
         suppressSizeToFit: true 
     },
     autoSizeStrategy: {
         type: 'none' 
     },
-    headerHeight: 30,
-    rowHeight: 30,
+    headerHeight: 25,
+    rowHeight: 25,
     rowData: [],
 
     // ⭐ 클릭 이벤트 수정: 'receipt_code'를 직접 참조하도록 변경
@@ -855,10 +879,11 @@ const finishedGridOptions = {
         sortable: true,
         filter: true,
         resizable: true,
-        flex: 0
+        flex: 0,
+        cellStyle: { fontSize: '12px' }
     },
-    headerHeight: 30,
-    rowHeight: 30,
+    headerHeight: 25,
+    rowHeight: 25,
     rowData: [],
     onGridReady: (params) => {
         window.finishedGridApi = params.api;
@@ -879,7 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // 데이터불러오기 함수
-async function loadFinishedData() {
+/*async function loadFinishedData() {
     const year = document.getElementById('finish-year').value;
     const month = document.getElementById('finish-month').value;
     const manager = document.getElementById('finish-manager').value;
@@ -898,6 +923,61 @@ async function loadFinishedData() {
         }
     } catch (error) {
         console.error("네트워크 에러:", error);
+    }
+}*/
+
+async function loadFinishedData() {
+    // ... 상단 변수(year, month 등) 선언 동일 ...
+    // [수정] 아래 3줄이 반드시 함수 안에 있어야 합니다!
+    const year = document.getElementById('finish-year')?.value;
+    const month = document.getElementById('finish-month')?.value;
+    const manager = document.getElementById('finish-manager')?.value;
+
+    // 만약 위 ID들이 다르다면 실제 HTML에 있는 ID로 바꿔주세요.
+    console.log(`[완료건 조회] ${year}년 ${month}월 / 담당자: ${manager}`);
+
+    if (!year || !month) {
+        alert("년도와 월을 선택해주세요.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/get_finished_data?year=${year}&month=${month}&manager=${manager}`);
+        const result = await response.json();
+
+        if (result.success) {
+            // 1. 하단 그리드에 데이터 표시
+            window.finishedGridApi.setGridOption('rowData', result.data);
+            const finishedData = result.data;
+
+            // 2. 상단 그리드(비즈메카) 데이터를 가져와서 하나씩 비교
+            const updatedRows = [];
+            window.upperGridApi.forEachNode((node) => {
+                const row = node.data;
+                
+                // 날짜와 제목 추출 (상단 표 필드명에 맞게 date, title 등 확인)
+                const uDate = String(row.date || row['날짜'] || "").replace(/\s+/g, '').replace(/\./g, '-').trim();
+                const uTitle = String(row.title || row['제목'] || "").replace(/\s+/g, '');
+
+                // 하단 완료건과 비교
+                const matched = finishedData.some(item => {
+                    const fDate = String(item.시험수거일 || "").replace(/\s+/g, '').trim();
+                    const fCompany = String(item.의뢰업체명 || "").replace(/\(주\)|주식회사/g, '').replace(/\s+/g, '').trim();
+                    return uDate === fDate && uTitle.includes(fCompany);
+                });
+
+                // ★ 중요: 데이터 자체에 '완료됨' 표시를 심어줍니다.
+                row.isCompleted = matched; 
+                updatedRows.push(row);
+            });
+
+            // 3. 표시가 완료된 데이터를 상단 그리드에 다시 세팅 (색깔이 자동으로 바뀜)
+            window.upperGridApi.setGridOption('rowData', updatedRows);
+            
+            console.log("매칭 완료 및 색상 적용 성공!");
+        }
+    } catch (error) {
+        console.error("오류 발생:", error);
     }
 }
 
@@ -1068,28 +1148,36 @@ function saveToDatabase() {
 
 // 모달 드래그 이동 기능
 document.addEventListener('mousedown', function (e) {
-    // 모달 헤더인지 확인
+    // 1. 클릭한 곳이 모달 헤더인지 확인
     const header = e.target.closest('.modal-header');
     if (!header) return;
 
     const modal = header.closest('.modal-content');
     if (!modal) return;
 
-    // 드래그 시작 시 위치 계산
+    // [핵심 추가] 드래그 시작 시 현재 너비를 구해서 고정합니다.
+    // 이렇게 해야 fixed로 변할 때 창이 커지지 않습니다.
+    const currentWidth = modal.offsetWidth;
+    modal.style.width = currentWidth + 'px';
+    modal.style.maxWidth = 'none'; // 부트스트랩의 최대 너비 제한 해제
+
+    // 2. 드래그 시작 시 마우스와 모달 사이의 거리(좌표) 계산
     let offset = {
         x: e.clientX - modal.getBoundingClientRect().left,
         y: e.clientY - modal.getBoundingClientRect().top
     };
 
     function onMouseMove(e) {
-        // 모달 위치 업데이트 (부모 레이아웃 영향 방지를 위해 fixed 권장)
+        // 3. 모달 위치 업데이트
         modal.style.position = 'fixed';
         modal.style.margin = '0';
         modal.style.left = (e.clientX - offset.x) + 'px';
         modal.style.top = (e.clientY - offset.y) + 'px';
+        modal.style.zIndex = '1060'; // 다른 요소보다 위에 오도록 설정
     }
 
     function onMouseUp() {
+        // 4. 마우스를 떼면 이벤트 제거
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
     }
@@ -1439,6 +1527,74 @@ function openSettlementModal(bizRow, qtRow) {
     // 4. 모달 표시
     const modal = new bootstrap.Modal(document.getElementById('settlementModal'));
     modal.show();
+}
+
+function highlightMatchedRows(finishedData) {
+    // 상단 비즈메카 리스트의 모든 행을 가져옵니다.
+    const upperRows = document.querySelectorAll('#bizMechaList tr'); 
+
+    upperRows.forEach(uRow => {
+        const uCells = uRow.cells;
+        if (uCells.length < 4) return;
+
+        // 1. 상단 날짜 형식 통일: 마침표(.)를 하이픈(-)으로 바꾸고 공백 제거
+        // "2025.12.01" -> "2025-12-01"
+        const uDate = uCells[1].innerText.replace(/\s+/g, '').replace(/\./g, '-').trim(); 
+        
+        // 2. 상단 제목 (업체명이 포함된 전체 텍스트)
+        const uTitle = uCells[3].innerText.trim(); 
+
+        // 3. 하단 DB 데이터와 하나씩 대조
+        const isMatched = finishedData.some(item => {
+            // 하단 날짜 (이미 "2025-12-01" 형식일 확률이 높음)
+            const fDate = item.시험수거일.replace(/\s+/g, '').trim(); 
+
+            // 하단 업체명 정제: (주), 주식회사 제거 후 공백 제거
+            const cleanCompany = item.의뢰업체명.replace(/\(주\)|주식회사/g, '').trim();
+
+            // 조건: 날짜가 완벽히 같고, 상단 제목 텍스트 안에 정제된 업체명이 포함되어 있는가?
+            return (uDate === fDate) && (uTitle.includes(cleanCompany));
+        });
+
+        // 4. 일치하면 배경색 변경 (연한 녹색)
+        if (isMatched) {
+            uRow.style.backgroundColor = '#e8f5e9'; // 배경: 연한 녹색
+            uRow.style.fontWeight = 'bold';         // 글자: 굵게 (선택 사항)
+        } else {
+            uRow.style.backgroundColor = '';         // 불일치 시 원래대로
+            uRow.style.fontWeight = 'normal';
+        }
+    });
+}
+
+// 모달 창 수동변경
+function applyManualChanges() {
+    const newManager = document.getElementById('m_edit_manager').value;
+    const newBuilder = document.getElementById('m_edit_builder').value;
+    
+    // 모달 하단 표의 첫 번째 행을 찾습니다.
+    const targetRow = document.querySelector('#settlementTargetList tr');
+    
+    if (!targetRow) {
+        alert("먼저 정산 데이터를 생성(정산하기 버튼 등)해 주세요.");
+        return;
+    }
+
+    // 1. 현장담당 업데이트 (2번째 칸)
+    if (newManager) {
+        targetRow.cells[1].innerText = newManager;
+        targetRow.cells[1].style.color = '#0d6efd'; // 변경된 건 파란색으로 표시
+        targetRow.cells[1].style.fontWeight = 'bold';
+    }
+
+    // 2. 의뢰업체명 업데이트 (4번째 칸)
+    if (newBuilder) {
+        targetRow.cells[3].innerText = newBuilder;
+        targetRow.cells[3].style.color = '#0d6efd';
+        targetRow.cells[3].style.fontWeight = 'bold';
+    }
+
+    console.log("현장담당/업체명 수동 변경 완료");
 }
 // -----------------여기까지 정산하기 모달 창 끝------------
 
