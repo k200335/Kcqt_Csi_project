@@ -49,7 +49,7 @@
                 <input type="file" id="excelFileInput" style="display: none;" accept=".xlsx, .xls" onchange="processExcelFile(event)">
                 <div class="col-auto ms-auto d-flex gap-2"> 
                     <button type="button" class="btn btn-warning btn-sm px-3" onclick="importAppliedAmounts()">
-                        <i class="bi bi-download"></i> 적용금액 가져오기
+                        <i class="bi bi-download"></i> 인센티브 가져오기
                     </button>
                     <button type="button" class="btn btn-success btn-sm px-3" onclick="onBtExport()">
                         <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
@@ -130,7 +130,15 @@
         
         // 정산 및 입금 정보 (입금액 배경색 유지)
         { headerName: "적용금액", field: "적용금액", width: 120 },
-        { headerName: "인센티브", field: "인센티브", width: 100 },
+        {
+            headerName: "인센티브",
+            field: "인센티브",
+            valueFormatter: params => {
+                if (!params.value) return 0;
+                // 소수점 반올림 후 천단위 콤마 포맷팅
+                return Math.round(params.value).toLocaleString();
+            }
+        },
         { headerName: "입금일", field: "입금일", width: 120 },
         { headerName: "입금액", field: "입금액", width: 120, cellStyle: {'background-color': '#e6fffa'}, valueFormatter: p => (p.value || 0).toLocaleString() },
         
@@ -327,7 +335,7 @@ async function onBtExport() {
         let groupStartRow = 2;   
         
         // 🌟 [수정] 1. subtotal 변수 초기화 (이 부분이 누락되어 에러 발생)
-        let subtotal = { supply: 0, vat: 0, deposit: 0, payment: 0, applied_amount: 0 };
+        let subtotal = { supply: 0, vat: 0, deposit: 0, payment: 0, applied_amount: 0, incentive: 0 };
 
         rowData.forEach((data, index) => {
             if (currentProject !== "" && currentProject !== data.사업명) {
@@ -337,7 +345,7 @@ async function onBtExport() {
                 groupStartRow = currentRowIndex;
                 
                 // 🌟 [수정] 2. 다음 그룹을 위해 subtotal 초기화
-                subtotal = { supply: 0, vat: 0, deposit: 0, payment: 0, applied_amount: 0 };
+                subtotal = { supply: 0, vat: 0, deposit: 0, payment: 0, applied_amount: 0, incentive: 0 };
             }
 
             const supply = Number(data.공급가액 || 0);
@@ -345,7 +353,7 @@ async function onBtExport() {
             const deposit = Number(data.입금액 || 0);
             const payment = Number(data.지급액합계 || 0);
             const appliedPrice = Number(data.적용금액 || 0);
-
+            const incentive = Math.round(Number(data.인센티브 || 0)); // 🌟 인센티브 소수점 제거
             const row = worksheet.getRow(currentRowIndex);
 
             // 실접수일 및 출장비구분 포맷팅
@@ -364,16 +372,16 @@ async function onBtExport() {
                 formattedTripType,
                 Number(data.출장비 || 0), Number(data.기본료 || 0), Number(data.정보처리비 || 0),
                 Number(data.시편제작비 || 0), Number(data.지게차운임 || 0), data.시료수거비,
-                Number(data.청구위탁시험비 || 0), appliedPrice, // 23번째: 적용금액
-                data.인센티브, data.입금일, deposit,
+                Number(data.청구위탁시험비 || 0), Number(appliedPrice || 0), // 23번째: 적용금액
+                Number(data.인센티브 || 0), data.입금일, deposit,
                 data.계산서발행회사명, data.계산서발행일, data.계산서담당자, data.계산서hp,
                 data.계산서tel, data.계산서fax, data.계산서email, data.계산서발행자,
                 data.의뢰인성명, data.현장전화, data.시료채취자, data.품질담당자,
-                data.현장담당, data.시료명, data.공수, payment
+                data.현장담당, data.시료명, data.공수, Number(payment || 0)
             ];
 
             // 금액 컬럼 포맷팅
-            [12, 13, 14, 16, 17, 18, 19, 20, 22, 23, 26, 42].forEach(col => {
+            [12, 13, 14, 16, 17, 18, 19, 20, 22, 23, 24, 26, 42].forEach(col => {
                 row.getCell(col).numFmt = '#,##0';
             });
 
@@ -386,6 +394,7 @@ async function onBtExport() {
             subtotal.deposit += deposit;
             subtotal.payment += payment;
             subtotal.applied_amount += appliedPrice;
+            subtotal.incentive += incentive; // 🌟 인센티브 합계 누적
 
             if (index === rowData.length - 1) {
                 insertSubtotalRow(worksheet, currentProject, groupStartRow, currentRowIndex - 1, currentRowIndex);
@@ -409,7 +418,8 @@ function insertSubtotalRow(ws, projectName, startLine, endLine, targetRow) {
     // L(12), M(13), N(14), W(23), Z(26), AP(42)
     const sumCols = [
         { idx: 12, col: 'L' }, { idx: 13, col: 'M' }, { idx: 14, col: 'N' },
-        { idx: 23, col: 'W' }, { idx: 26, col: 'Z' }, { idx: 42, col: 'AP' }
+        { idx: 23, col: 'W' }, { idx: 24, col: 'X' }, { idx: 26, col: 'Z' }, 
+        { idx: 42, col: 'AP' }
     ];
 
     sumCols.forEach(item => {
@@ -518,13 +528,13 @@ function updateGridWithExcelData(excelRows) {
 
         if (matchedRow) {
             // '적용금액' 컬럼의 값을 '공급가액' 필드에 반영
-            node.setDataValue('적용금액', matchedRow['적용금액'] || 0);
+            node.setDataValue('인센티브', matchedRow['인센티브'] || 0);
             updateCount++;
         }
     });
 
     if (updateCount > 0) {
-        alert(`총 ${updateCount}건의 적용금액이 그리드에 반영되었습니다.`);
+        alert(`총 ${updateCount}건의 인센티브가 그리드에 반영되었습니다.`);
         // 통계 수치 재계산 함수가 있다면 여기서 호출 (예: calculateStats())
     } else {
         alert("매칭되는 QT번호를 찾지 못했습니다. 엑셀의 'QT번호' 컬럼을 확인해주세요.");
