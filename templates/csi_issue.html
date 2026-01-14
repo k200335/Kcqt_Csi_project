@@ -451,10 +451,21 @@ function triggerExcelUpload2() {
 // ---------------------------3번 영역입니다.-------------------------
 let gridApi3;
 
-// 1. 그리드 컬럼 정의
+// 1. 그리드 컬럼 정의 (체크박스 추가)
 const columnDefs3 = [
-    { headerName: "ID", field: "ID", width: 80, sortable: true, filter: true }, // ID는 수정 불가
-    { headerName: "의뢰번호", field: "의뢰번호", width: 150, editable: true },
+    { 
+        headerName: "", 
+        checkboxSelection: true,      // 체크박스 표시
+        headerCheckboxSelection: true, // 헤더에 전체 선택 체크박스 표시
+        width: 30,
+        maxWidth: 30,                  // 🌟 최대 너비 제한
+        minWidth: 30,                  // 🌟 최소 너비 제한
+        pinned: 'left',                 // 왼쪽에 고정 (선택 사항)
+        suppressMovable: true,          // 사용자가 드래그해서 옮기지 못하게 함
+        lockPosition: 'left' // [추가] 사용자가 끌어서 순서를 바꾸지 못하게 고정
+    },
+    { headerName: "ID", field: "ID", width: 70, sortable: true, filter: true,pinned: 'left' },
+    { headerName: "의뢰번호", field: "의뢰번호", width: 150, editable: true,pinned: 'left' },
     { headerName: "접수번호", field: "접수번호", width: 150, editable: true },
     { headerName: "사업명", field: "사업명", width: 200, editable: true },
     { headerName: "의뢰기관명", field: "의뢰기관명", width: 180, editable: true },
@@ -466,6 +477,7 @@ const columnDefs3 = [
 const gridOptions3 = {
     columnDefs: columnDefs3,
     rowData: [],
+    rowSelection: 'multiple', // 🌟 다중 선택 모드 활성화
     defaultColDef: {
         resizable: true,
         sortable: true,
@@ -473,13 +485,13 @@ const gridOptions3 = {
         flex: 1,
         minWidth: 100
     },
-    // 셀 수정 시 이벤트 (필요 시 사용)
     onCellValueChanged: function(event) {
         console.log('데이터 수정됨:', event.data);
     },
     onModelUpdated: (event) => {
         const count = event.api.getDisplayedRowCount();
-        document.getElementById('total-count-3').innerText = count;
+        const element = document.getElementById('total-count-3');
+        if (element) element.innerText = count;
     }
 };
 
@@ -529,31 +541,35 @@ function fetchPanel3Data() {
         });
 }
 
-// 5. [DB 저장] 버튼 함수
+// 5. [DB 저장] 버튼 함수 (체크된 것만 저장하도록 수정)
 function savePanel3Data() {
-    // 그리드에 있는 전체 데이터를 가져옴
-    const rowData = [];
-    gridApi3.forEachNode(node => rowData.push(node.data));
+    if (!gridApi3) return;
+
+    // 🌟 선택된 노드(행)들만 가져옵니다.
+    const selectedNodes = gridApi3.getSelectedNodes();
+    const selectedData = selectedNodes.map(node => node.data);
     
-    if (rowData.length === 0) {
-        alert("저장할 데이터가 없습니다.");
+    if (selectedData.length === 0) {
+        alert("저장할 데이터를 선택(체크)해 주세요.");
         return;
     }
 
-    if (!confirm("수정된 내용을 DB에 저장하시겠습니까?")) return;
+    if (!confirm(`${selectedData.length}건의 데이터를 DB에 저장하시겠습니까?`)) return;
 
     fetch('/save_panel3_data/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken') // 장고 CSRF 토큰 함수 필요
+            'X-CSRFToken': getCookie('csrftoken')
         },
-        body: JSON.stringify({ items: rowData })
+        body: JSON.stringify({ items: selectedData }) // 체크된 데이터만 전송
     })
     .then(res => res.json())
     .then(result => {
         if (result.success) {
             alert("성공적으로 저장되었습니다.");
+            // 저장 후 선택 해제 (선택 사항)
+            gridApi3.deselectAll();
         } else {
             alert("저장 실패: " + result.error);
         }
