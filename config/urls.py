@@ -104,4 +104,7 @@ urlpatterns = [
 
     path('board/save_field_team_data/', views.save_field_team_data, name='save_field_team_data'),
     
+    # 새로 추가한 경로 (이 부분이 없어서 404가 뜹니다)
+    path('settlement_admin/', views.settlement_report, name='settlement_admin'),
+    
 ]

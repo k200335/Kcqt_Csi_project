@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% block content %}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/styles/ag-theme-balham.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/dist/ag-grid-community.min.js"></script>
+
+<style>
+    /* 1. 상하 6:4 분할 레이아웃 */
+    #main-layout {
+        display: flex;
+        flex-direction: column;
+        height: 92vh; /* 전체 화면 높이 확보 */
+        gap: 10px;
+        padding: 10px;
+    }
+
+    /* 상단 영역 (6) */
+    .top-section {
+        flex: 6; 
+        display: flex;
+        flex-direction: column;
+        min-height: 0; /* flex 자식의 overflow 방지 */
+    }
+
+    /* 하단 영역 (4) */
+    .bottom-section {
+        flex: 4;
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 15px;
+        overflow-y: auto;
+    }
+
+    /* 검색 바 스타일 */
+    .search-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        margin-bottom: 8px;
+    }
+
+    /* 그리드 컨테이너 */
+    #myGrid {
+        flex: 1;
+        width: 100%;
+    }
+
+    .fw-bold-small { font-weight: bold; font-size: 0.85rem; }
+</style>
+
+<div id="main-layout">
+    <div class="top-section">
+        <div class="search-bar">
+            <select id="dateTarget" class="form-select form-select-sm" style="width: 130px;">
+                <option value="deposit">입금일 기준</option>
+                <option value="receipt">실접수일 기준</option>
+            </select>
+
+            <div class="d-flex align-items-center gap-1">
+                <input type="date" id="startDate" class="form-control form-control-sm" style="width: 140px;">
+                <span>~</span>
+                <input type="date" id="endDate" class="form-control form-control-sm" style="width: 140px;">
+            </div>
+
+            <select id="searchType" class="form-select form-select-sm" style="width: 120px;">                
+                <option value="req_no">의뢰번호</option>
+                <option value="receipt_no">QT번호</option>                
+                <option value="client">의뢰기관명</option>
+                <option value="project">사업명</option>
+            </select>
+
+            <input type="text" id="searchText" class="form-control form-control-sm" style="width: 180px;" placeholder="검색어 입력">
+
+            <button onclick="onSearch()" class="btn btn-primary btn-sm px-3">
+                <i class="bi bi-search"></i> 조회
+            </button>
+            <button onclick="onExcelDownload()" class="btn btn-outline-success btn-sm px-3">
+                <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
+            </button>
+            <div class="d-flex align-items-center ms-auto gap-3 px-3 py-1 bg-white border rounded shadow-sm" style="min-width: 500px;">
+                <div class="text-nowrap"><span class="small text-muted">총:</span> <b id="stat-count" class="text-dark">0</b><span class="small">건</span></div>
+                <div class="vr"></div>
+                <div class="text-nowrap"><span class="small text-muted">공급가:</span> <b id="stat-supply" class="text-primary">0</b></div>
+                <div class="vr"></div>
+                <div class="text-nowrap"><span class="small text-muted">부가세:</span> <b id="stat-vat" class="text-secondary">0</b></div>
+                <div class="vr"></div>
+                <div class="text-nowrap"><span class="small text-muted">합계:</span> <b id="stat-total" class="text-danger">0</b></div>
+                <div class="vr"></div>
+                <div class="text-nowrap"><span class="small text-muted">입금액:</span> <b id="stat-deposit" class="text-success">0</b></div>
+            </div>
+        </div>
+
+        <div id="myGrid" class="ag-theme-balham"></div>
+    </div>
+
+    <div class="bottom-section">
+        <h6 class="fw-bold-small border-bottom pb-2 mb-3">
+            <i class="bi bi-info-circle"></i> 상세 정보 및 통계
+        </h6>
+        <div id="detail-content" class="text-muted text-center mt-5">
+            그리드에서 행을 선택하거나 조회를 시작하세요.
+        </div>
+    </div>
+</div>
+
+<script>
+    let gridApi;
+
+    // 1. 칼럼 정의 (요청하신 4개 항목 위주)
+    const columnDefs = [
+        { headerName: "담당자", field: "담당자", width: 60, pinned: 'left' },
+        // { headerName: "미인정", field: "미인정", width: 80, pinned: 'left', valueFormatter: p => p.value == '1' ? '미인정' : '인정' },       
+        { headerName: "미인정", field: "미인정", width: 60, pinned: 'left',
+            // 값이 존재하고 '0'이 아니면 DB 값 그대로, 그 외엔 하이픈(-)
+            valueFormatter: p => {
+                if (p.value != null && p.value !== "" && p.value != '0') {
+                    return p.value; // DB에 저장된 값 (예: 1, 2 등) 그대로 출력
+                }
+                return "-"; // 값이 없거나 0일 때만 하이픈
+            },
+            cellStyle: { 'text-align': 'center' }
+        },        
+        { headerName: "의뢰번호", field: "의뢰번호", width: 150, pinned: 'left' },
+        { headerName: "지원", field: "지원", width: 80 },
+        { headerName: "영업담당", field: "영업담당", width: 100 },
+        { headerName: "QT번호", field: "QT번호", width: 140 },
+        { headerName: "실접수일", field: "실접수일", width: 120, valueFormatter: p => p.value ? p.value.split('T')[0] : "" },
+        { headerName: "의뢰기관명", field: "의뢰기관명", width: 220 },
+        { headerName: "공사명", field: "사업명", width: 300 },
+        { headerName: "봉인명", field: "봉인명", width: 220 },
+        { headerName: "시료량", field: "시료량", width: 100 },
+        { headerName: "공급가액", field: "공급가액", width: 120, type: 'numericColumn', valueFormatter: p => Math.floor(p.value || 0).toLocaleString() },
+        { headerName: "부가세", field: "부가세", width: 110, type: 'numericColumn', valueFormatter: p => Math.floor(p.value || 0).toLocaleString() },
+        { headerName: "합계", valueGetter: p => (Number(p.data.공급가액 || 0) + Number(p.data.부가세 || 0)), width: 120, type: 'numericColumn', valueFormatter: p => p.value.toLocaleString() },
+        { headerName: "출장비구분", field: "출장비구분", width: 100, valueFormatter: p => p.value == '1' ? "본원" : "지원" },
+        { headerName: "출장비", field: "출장비", width: 100, valueFormatter: p => (p.value || 0).toLocaleString() },
+        { headerName: "기본료", field: "기본료", width: 100, valueFormatter: p => (p.value || 0).toLocaleString() },
+        { headerName: "정보처리비", field: "정보처리비", width: 110, valueFormatter: p => (p.value || 0).toLocaleString() },
+        { headerName: "시편제작비", field: "시편제작비", width: 110, valueFormatter: p => (p.value || 0).toLocaleString() },
+        { headerName: "지게차운임", field: "지게차운임", width: 110, valueFormatter: p => (p.value || 0).toLocaleString() },
+        { headerName: "시료수거비", field: "시료수거비", width: 110 },
+        { headerName: "청구위탁시험비", field: "청구위탁시험비", width: 130, valueFormatter: p => (p.value || 0).toLocaleString() },
+        { headerName: "적용금액", field: "적용금액", width: 120 },
+        { headerName: "인센티브", field: "인센티브", valueFormatter: p => Math.round(p.value || 0).toLocaleString() },
+        { headerName: "입금일", field: "입금일", width: 120 },
+        { headerName: "입금액", field: "입금액", width: 120, cellStyle: {'background-color': '#e6fffa'}, valueFormatter: p => (p.value || 0).toLocaleString() },
+        { headerName: "계산서발행회사명", field: "계산서발행회사명", width: 180 },
+        { headerName: "계산서발행일", field: "계산서발행일", width: 120 },
+        { headerName: "계산서담당자", field: "계산서담당자", width: 120 },
+        { headerName: "계산서hp", field: "계산서hp", width: 130 },
+        { headerName: "계산서tel", field: "계산서tel", width: 130 },
+        { headerName: "계산서fax", field: "계산서fax", width: 130 },
+        { headerName: "계산서email", field: "계산서email", width: 180 },
+        { headerName: "계산서발행자", field: "계산서발행자", width: 120 },
+        { headerName: "의뢰인성명", field: "의뢰인성명", width: 120 },
+        { headerName: "현장전화", field: "현장전화", width: 130 },
+        { headerName: "시료채취자", field: "시료채취자", width: 120 },
+        { headerName: "품질담당자", field: "품질담당자", width: 120 },
+        { headerName: "현장담당", field: "현장담당", width: 100 },
+        { headerName: "시료명", field: "시료명", width: 150 },
+        { headerName: "공수", field: "공수",  width: 80,
+        // type: 'numericColumn' 이 부분은 삭제하거나 주석 처리하세요 (숫자 정렬/계산용이기 때문)
+        cellStyle: { 'text-align': 'center' }, // 숫자가 아니므로 가운데 정렬 추천
+        valueFormatter: p => p.value === null || p.value === undefined ? "" : p.value 
+        // 값이 없으면 빈칸, 있으면 DB에 있는 문자 그대로 출력
+        },                       
+        { headerName: "지급액합계", field: "지급액합계", width: 120, type: 'numericColumn', valueFormatter: p => Math.floor(p.value || 0).toLocaleString() + "원" }
+
+    ];
+
+
+
+    // 2. 그리드 옵션 설정
+    const gridOptions = {
+        columnDefs: columnDefs,
+        rowData: [],
+        defaultColDef: {
+            resizable: true,
+            sortable: true,
+            filter: true,
+            headerClass: 'text-center'
+        },
+        headerHeight: 32,
+        rowHeight: 28,
+        // onRowClicked: (params) => {
+        // showDetail(params.data); // 하단에 만들어둔 표 함수를 호출하도록 변경
+        // }
+        // 행 클릭 시 하단 영역 업데이트 예시
+        // onRowClicked: (params) => {
+        //     document.getElementById('detail-content').innerHTML = `
+        //         <div class="text-start p-3 bg-light rounded border">
+        //             <p><b>의뢰번호:</b> ${params.data.의뢰번호}</p>
+        //             <p><b>담당자:</b> ${params.data.담당자}</p>
+        //             <p><b>공급가액:</b> ${Number(params.data.공급가액).toLocaleString()} 원</p>
+        //         </div>
+        //     `;
+        // }
+    };
+
+    // 3. 페이지 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+        const gridDiv = document.querySelector('#myGrid');
+        gridApi = agGrid.createGrid(gridDiv, gridOptions);
+
+        // 기본 날짜 설정 (한달 전 ~ 오늘)
+        const today = new Date().toISOString().split('T')[0];
+        const lastMonth = new Date();
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+        
+        document.getElementById('endDate').value = today;
+        document.getElementById('startDate').value = lastMonth.toISOString().split('T')[0];
+    });
+
+    // 4. [핵심] 데이터 조회 함수 (Fetch 연동)
+// function onSearch() {
+//     const start = document.getElementById('startDate').value;
+//     const end = document.getElementById('endDate').value;
+//     const dateType = document.getElementById('dateTarget').value === 'receipt' ? 'save' : 'deposit';
+//     const searchType = document.getElementById('searchType').value;
+//     const searchText = document.getElementById('searchText').value;
+
+//     if (!start || !end) {
+//         alert("조회 기간을 선택해주세요.");
+//         return;
+//     }
+
+//     // 로딩 중 표시 (선택사항)
+//     gridApi.setGridOption('rowData', []);
+//     document.getElementById('detail-content').innerHTML = "데이터를 불러오는 중...";
+
+//     // 서버의 settlement_report 뷰 호출
+//     const url = `/settlement_admin/?start_date=${start}&end_date=${end}&date_type=${dateType}&search_type=${searchType}&search_text=${encodeURIComponent(searchText)}`;
+    
+//     fetch(url)
+//         .then(res => res.json())
+//         .then(data => {
+//             if (data.error) {
+//                 alert("에러 발생: " + data.error);
+//                 return;
+//             }
+//             // 그리드에 데이터 삽입
+//             gridApi.setGridOption('rowData', data);
+            
+//             // 하단 요약 업데이트
+//             updateBottomSummary(data);
+//         })
+//         .catch(err => {
+//             console.error("데이터 로드 실패:", err);
+//             alert("데이터를 가져오는 중 오류가 발생했습니다.");
+//         });
+// }
+
+// 5. 하단 요약 및 상세 표시 함수
+// function updateBottomSummary(data) {
+//     const totalCount = data.length;
+//     const totalSupply = data.reduce((sum, row) => sum + Number(row.공급가액 || 0), 0);
+//     const totalDeposit = data.reduce((sum, row) => sum + Number(row.입금액 || 0), 0);
+
+//     document.getElementById('detail-content').innerHTML = `
+//         <div class="row text-center">
+//             <div class="col-4 border-end">
+//                 <div class="small text-muted">총 건수</div>
+//                 <div class="h5 fw-bold">${totalCount.toLocaleString()}건</div>
+//             </div>
+//             <div class="col-4 border-end">
+//                 <div class="small text-muted">총 공급가액</div>
+//                 <div class="h5 fw-bold text-primary">${totalSupply.toLocaleString()}원</div>
+//             </div>
+//             <div class="col-4">
+//                 <div class="small text-muted">총 입금액</div>
+//                 <div class="h5 fw-bold text-success">${totalDeposit.toLocaleString()}원</div>
+//             </div>
+//         </div>
+//         <hr>
+//         <p class="text-center text-muted mt-2">그리드에서 행을 클릭하면 상세 현장 정보를 볼 수 있습니다.</p>
+//     `;
+// }
+
+function onSearch() {
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    const dateType = document.getElementById('dateTarget').value === 'receipt' ? 'save' : 'deposit';
+    const searchType = document.getElementById('searchType').value;
+    const searchText = document.getElementById('searchText').value;
+
+    if (!start || !end) {
+        alert("조회 기간을 선택해주세요.");
+        return;
+    }
+
+    gridApi.setGridOption('rowData', []);
+    document.getElementById('detail-content').innerHTML = "데이터를 불러오는 중...";
+
+    const url = `/settlement_admin/?start_date=${start}&end_date=${end}&date_type=${dateType}&search_type=${searchType}&search_text=${encodeURIComponent(searchText)}`;
+    
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert("에러 발생: " + data.error);
+                return;
+            }
+            gridApi.setGridOption('rowData', data);
+            
+            // 1. 하단 요약 업데이트 (기존)
+            // updateBottomSummary(data);
+
+            // 2. 상단 요약 업데이트 (신규 추가)
+            updateTopSummary(data);
+        })
+        .catch(err => {
+            console.error("데이터 로드 실패:", err);
+            alert("데이터를 가져오는 중 오류가 발생했습니다.");
+        });
+}
+
+// 상단 통계 업데이트 함수
+function updateTopSummary(data) {
+    const count = data.length;
+    const supply = data.reduce((sum, r) => sum + Number(r.공급가액 || 0), 0);
+    const vat = data.reduce((sum, r) => sum + Number(r.부가세 || 0), 0);
+    const deposit = data.reduce((sum, r) => sum + Number(r.입금액 || 0), 0);
+    const total = supply + vat;
+
+    // 각 ID에 맞는 위치에 숫자 삽입 (콤마 추가)
+    document.getElementById('stat-count').innerText = count.toLocaleString();
+    document.getElementById('stat-supply').innerText = Math.floor(supply).toLocaleString();
+    document.getElementById('stat-vat').innerText = Math.floor(vat).toLocaleString();
+    document.getElementById('stat-total').innerText = Math.floor(total).toLocaleString();
+    document.getElementById('stat-deposit').innerText = Math.floor(deposit).toLocaleString();
+}
+
+</script>
+
+{% endblock %}

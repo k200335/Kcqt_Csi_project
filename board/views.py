@@ -2274,10 +2274,132 @@ def save_field_team_data(request):
     
     return JsonResponse({"status": "error", "message": "잘못된 접근입니다."}, status=405)
 
-
-
-
-
-
-
 # 작업중 페이지 여기까지
+
+# ---------------------------------여기서 부터 settlement_admin 시작입니다.---------------str
+
+# views.py
+
+def settlement_report(request):
+    # [A] 화면 초기 접속 (주소창에 엔터 쳤을 때)
+    start_date = request.GET.get('start_date')
+    if not start_date:
+        # 지우셨던 settlement_admin.html 파일명을 정확히 적으세요.
+        return render(request, 'settlement_admin.html')
+
+    # [B] 조회 버튼 클릭 시 (JSON 데이터 처리)
+    try:
+        end_date = request.GET.get('end_date')
+        date_type = request.GET.get('date_type') # 실접수일기준 / 입금일기준
+        search_type = request.GET.get('search_type')
+        search_text = request.GET.get('search_text', '').strip()
+
+        final_results = []
+        
+        # 1. MSSQL 조회 (날짜 및 하이픈 처리)
+        with connections['mssql'].cursor() as mssql_cursor:
+            if date_type == "deposit":
+                target_col = "e.deposit_day"
+                q_start, q_end = start_date.replace('-', ''), end_date.replace('-', '')
+            else:
+                target_col = "CONVERT(CHAR(10), c.save_date, 120)"
+                q_start, q_end = start_date, end_date
+
+            mssql_where = f"WHERE {target_col} BETWEEN %s AND %s "
+            mssql_params = [q_start, q_end]
+
+            if search_text:
+                if search_type == 'req_no':        # 의뢰번호
+                    mssql_where += " AND c.request_code LIKE %s"
+                elif search_type == 'receipt_no':  # QT번호
+                    mssql_where += " AND a.receipt_code LIKE %s"
+                elif search_type == 'client':      # 의뢰기관명
+                    mssql_where += " AND a.builder LIKE %s"
+                elif search_type == 'project':     # 사업명
+                    mssql_where += " AND a.construction LIKE %s"
+                
+                mssql_params.append(f"%{search_text}%")
+
+            # 지게차운임 서브쿼리 포함 (RTRIM으로 공백 제거 필수)
+            mssql_query = f"""
+                SELECT 
+                    RTRIM(c.request_code) as [의뢰번호], RTRIM(a.receipt_code) as [QT번호],
+                    c.sales as [영업담당], c.save_date as [실접수일],
+                    a.builder as [의뢰기관명], a.construction as [사업명],
+                    a.cm_name as [의뢰인성명], a.cm_tel as [현장전화], a.get_name as [시료채취자], a.qm_name as [품질담당자],
+                    b.specimen as [봉인명], b.specimen_qty as [시료량],
+                    d.supply_value as [공급가액], d.vat as [부가세],
+                    d.basic as [기본료], d.process as [정보처리비], d.sample as [시편제작비],
+                    d.tran_set as [출장비구분], d.[tran] as [출장비],
+                    e.deposit_day as [입금일], e.deposit as [입금액],
+                    f.company as [계산서발행회사명], f.issue_date as [계산서발행일], f.manager as [계산서담당자],
+                    f.hp as [계산서hp], f.tel as [계산서tel], f.fax as [계산서fax], f.email as [계산서email], f.issue_employee as [계산서발행자],
+                    g.price as [청구위탁시험비],
+                    ISNULL((SELECT SUM(ei_price) FROM dbo.Examination_Item 
+                     WHERE receipt_code = a.receipt_code AND item_name LIKE '%%지게차%%'), 0) as [지게차운임],                    
+                    ISNULL((SELECT SUM(ei_price) FROM dbo.Examination_Item 
+                    WHERE receipt_code = a.receipt_code AND item_name LIKE '%%시료수거비%%'), 0) as [시료수거비] 
+                FROM dbo.Receipt c
+                LEFT JOIN dbo.Customer a ON c.receipt_code = a.receipt_code
+                LEFT JOIN dbo.Specimen_info b ON c.receipt_code = b.receipt_code
+                LEFT JOIN dbo.Estimate d ON c.receipt_code = d.receipt_code
+                LEFT JOIN dbo.Deposit e ON c.receipt_code = e.receipt_code
+                LEFT JOIN dbo.Tax_Manager f ON c.receipt_code = f.receipt_code
+                LEFT JOIN dbo.Consignment g ON c.receipt_code = g.receipt_code
+                {mssql_where}
+            """
+            mssql_cursor.execute(mssql_query, mssql_params)
+            columns = [col[0] for col in mssql_cursor.description]
+            mssql_rows = [dict(zip(columns, row)) for row in mssql_cursor.fetchall()]
+
+        # 2. MySQL 매칭 (의뢰번호/QT번호 각각의 Key로 매칭)
+        if mssql_rows:
+            req_codes = [r['의뢰번호'] for r in mssql_rows if r['의뢰번호']]
+            qt_codes = [r['QT번호'] for r in mssql_rows if r['QT번호']]
+            csi_map, field_map = {}, {}
+
+            with connections['default'].cursor() as my_cursor:
+                if req_codes: # 의뢰번호 기준: 담당자
+                    placeholders = ', '.join(['%s'] * len(req_codes))
+                    my_cursor.execute(f"SELECT 의뢰번호, 담당자, 미인정 FROM csi_receipts WHERE 의뢰번호 IN ({placeholders})", req_codes)
+                    for row in my_cursor.fetchall():
+                        csi_map[str(row[0]).strip()] = {'담당자': row[1], '미인정': row[2]}
+
+                # 2. MySQL 매칭 부분 (시료명 추가됨)
+                if qt_codes: # QT번호 기준: 현장팀
+                    placeholders = ', '.join(['%s'] * len(qt_codes))
+                    # row[2]가 시료명, row[3]이 공수, row[4]가 합계
+                    my_cursor.execute(f"SELECT 접수번호, 현장담당, 시료명, 공수, (출장비 + 추가) FROM winapps_현장팀 WHERE 접수번호 IN ({placeholders})", qt_codes)
+                    for row in my_cursor.fetchall():
+                        field_map[str(row[0]).strip()] = {
+                            '현장담당': row[1],
+                            '시료명': row[2], 
+                            '공수': row[3], 
+                            '지급액합계': row[4]
+                        }
+
+                # 3. 데이터 결합 부분
+                for row in mssql_rows:
+                    r_key, q_key = row['의뢰번호'], row['QT번호']
+                    c_info = csi_map.get(r_key, {'담당자': '-', '미인정': '0'})
+                    
+                    # [수정 포인트] 여기에 '시료명': '-' 을 추가해줘야 안전합니다.
+                    f_info = field_map.get(q_key, {'현장담당': '-', '시료명': '-', '공수': 0, '지급액합계': 0})
+                    
+                    row.update({
+                        '담당자': c_info['담당자'], 
+                        '미인정': c_info['미인정'],
+                        '현장담당': f_info['현장담당'], 
+                        '시료명': f_info['시료명'], # 이제 여기서 안전하게 가져옵니다.
+                        '공수': f_info['공수'], 
+                        '지급액합계': f_info['지급액합계'],
+                        '사업명': row['사업명']
+                    })
+                    final_results.append(row)
+
+        return JsonResponse(final_results, safe=False)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+# ---------------------------------여기까지 settlement_admin 끝입니다.---------------end
