@@ -32,7 +32,6 @@ from django.conf import settings
 import uuid # 고유 파일명을 위해 추가
 
 
-# --- [1] 기본 게시판 및 페이지 렌더링 ---
 
 def receipt_list(request):
     search_type = request.GET.get('search_type', 'rqcode')
@@ -2161,16 +2160,18 @@ def save_panel4_data(request):
             new_items = data.get('new_items', [])
             updated_items = data.get('updated_items', [])
             
-            created_ids = [] # ✨ 새로 생성된 ID를 담을 리스트
+            created_ids = [] 
             
             with connection.cursor() as cursor:
-                # A. 신규 저장 (INSERT 후 ID 가져오기)
+                # A. 신규 저장 (INSERT)
                 for item in new_items:
                     cursor.execute(
-                        "INSERT INTO settlement_amount (QT번호, 금액) VALUES (%s, %s)", 
-                        [item['receipt_code'], item['applied_amount']]
+                        # 1. 비고 컬럼과 %s 추가
+                        "INSERT INTO qt_issue (QT번호, 금액, 비고) VALUES (%s, %s, %s)", 
+                        # 2. item['memo'] 전달
+                        [item['receipt_code'], item['applied_amount'], item.get('memo', '')]
                     )
-                    # 방금 INSERT된 ID 가져오기 (MySQL/MariaDB 기준)
+                    # 방금 INSERT된 ID 가져오기
                     cursor.execute("SELECT LAST_INSERT_ID()")
                     new_id = cursor.fetchone()[0]
                     created_ids.append(new_id)
@@ -2178,14 +2179,15 @@ def save_panel4_data(request):
                 # B. 기존 수정 (UPDATE)
                 for item in updated_items:
                     cursor.execute(
-                        "UPDATE settlement_amount SET QT번호 = %s, 금액 = %s WHERE ID = %s",
-                        [item['receipt_code'], item['applied_amount'], item['id']]
+                        # 3. SET 절에 비고 = %s 추가
+                        "UPDATE qt_issue SET QT번호 = %s, 금액 = %s, 비고 = %s WHERE ID = %s",
+                        # 4. 순서에 맞춰 [QT, 금액, 비고, ID] 전달
+                        [item['receipt_code'], item['applied_amount'], item.get('memo', ''), item['id']]
                     )
             
-            # ✨ 생성된 ID 목록을 같이 반환
             return JsonResponse({"success": True, "created_ids": created_ids})
         except Exception as e:
-            return JsonResponse({"success": False, "message": str(e)})     
+            return JsonResponse({"success": False, "message": str(e)})  
 
 # [views.py]
 # from django.http import JsonResponse
@@ -2197,7 +2199,7 @@ def get_panel4_data(request):
     
     with connection.cursor() as cursor:
         # 1. 기본 SQL 쿼리 (이미지 필드명 반영: QT번호, 금액)
-        sql = "SELECT ID, QT번호, 금액 FROM settlement_amount"
+        sql = "SELECT ID, QT번호, 금액, 비고 FROM qt_issue"
         params = []
         
         # 2. 검색어가 입력되었다면 WHERE 조건 추가
@@ -2216,7 +2218,8 @@ def get_panel4_data(request):
             {
                 'id': r[0], 
                 'receipt_code': r[1], 
-                'applied_amount': r[2]
+                'applied_amount': r[2],
+                'memo': r[3]
             } for r in rows
         ]
         
@@ -2403,3 +2406,41 @@ def settlement_report(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 # ---------------------------------여기까지 settlement_admin 끝입니다.---------------end
+
+# -----------------------여기부터 db연결 후 인센넣기----str
+
+def get_qt_incentives(request):
+    try:
+        with connection.cursor() as cursor:
+            # MySQL 문법에 맞춰 대괄호[]를 제거하거나 백틱(``)으로 수정합니다.
+            # 한글 컬럼명이므로 안전하게 백틱을 사용하거나 그냥 입력합니다.
+            sql = "SELECT `QT번호`, `금액` FROM `qt_issue`"
+            cursor.execute(sql)
+            
+            columns = [col[0] for col in cursor.description]
+            results = []
+            
+            for row in cursor.fetchall():
+                row_dict = dict(zip(columns, row))
+                
+                # 금액이 VARCHAR이므로 숫자로 변환 처리 [이미지 데이터 구조 참고]
+                val = row_dict.get('금액')
+                if val:
+                    try:
+                        # 콤마나 공백 제거 후 float 변환
+                        row_dict['금액'] = float(str(val).replace(',', '').strip())
+                    except:
+                        row_dict['금액'] = 0
+                else:
+                    row_dict['금액'] = 0
+                    
+                results.append(row_dict)
+            
+            return JsonResponse(results, safe=False)
+            
+    except Exception as e:
+        # 에러 발생 시 터미널에 상세 내용을 찍습니다.
+        print(f"!!! Django View Error: {str(e)}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+# -----------------------여기까지 db연결 후 인센넣기-----end

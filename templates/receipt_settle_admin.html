@@ -5,12 +5,9 @@
 <head>
     <meta charset="UTF-8">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>    
 </head>    
 <div class="container-fluid py-3">
     <div class="card shadow-sm mb-4">
@@ -49,7 +46,10 @@
                 <input type="file" id="excelFileInput" style="display: none;" accept=".xlsx, .xls" onchange="processExcelFile(event)">
                 <div class="col-auto ms-auto d-flex gap-2"> 
                     <button type="button" class="btn btn-warning btn-sm px-3" onclick="importAppliedAmounts()">
-                        <i class="bi bi-download"></i> 인센티브 가져오기
+                        <i class="bi bi-download"></i> 엑셀 가져오기
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm px-3" onclick="onSaveToDB()">
+                        <i class="bi bi-cloud-upload"></i> 마감하기
                     </button>
                     <button type="button" class="btn btn-success btn-sm px-3" onclick="onBtExport()">
                         <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
@@ -176,50 +176,58 @@
 
     // columnDefs 배열 내부의 출장비구분 컬럼을 찾아서 수정하세요
     
-    // 3. 그리드 옵션 설정
-    const gridOptions = {
-        columnDefs: columnDefs,
-        rowData: [], 
-        defaultColDef: {
-            resizable: true,
-            sortable: true,
-            filter: true,
-            flex: 0,
-            minWidth: 100
-        },
-        pagination: false,
-        paginationPageSize: 20,
-        // 로딩 시 표시될 텍스트
-        overlayLoadingTemplate: '<span class="ag-overlay-loading-center">데이터를 불러오는 중입니다...</span>',
+    // 1. 그리드 옵션 설정 부분 수정
+const gridOptions = {
+    columnDefs: columnDefs,
+    rowData: [], 
+    // --- 높이 조절 속성 추가 ---
+    headerHeight: 30,      // 헤더 높이 줄임
+    rowHeight: 33,         // 행 높이 줄임
+    // -----------------------
+    defaultColDef: {
+        resizable: true,
+        sortable: true,
+        filter: true,
+        flex: 0,
+        minWidth: 100
+    },
+    pagination: false,
+    overlayLoadingTemplate: '<span class="ag-overlay-loading-center">데이터를 불러오는 중입니다...</span>',
+    onGridReady: (params) => {
+        gridApi = params.api; // 기존 gridApi 변수 활용
+        window.finishedGridApi = params.api;
+        console.log("그리드 API 연결 완료");
+    },
+};
 
-        // 🌟 이 부분을 추가하세요!
-        onGridReady: (params) => {
-            window.finishedGridApi = params.api; // 이제 외부에서 이 변수를 사용할 수 있습니다.
-            console.log("그리드 API 연결 완료");
-        },
-    };
+// 2. 통합된 window.onload 로직
+window.onload = function() {
+    // 날짜 자동 설정
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 2).toISOString().split('T')[0].substring(0, 8) + '01';
+    
+    document.getElementById('startDate').value = firstDay;
+    document.getElementById('endDate').value = today;
 
-    // 4. 초기화 및 데이터 로드 (window.onload로 통합)
-    window.onload = function() {
-        const gridDiv = document.querySelector('#myGrid');
-        if (gridDiv) {
-            // 그리드 생성 및 API 할당
-            gridApi = agGrid.createGrid(gridDiv, gridOptions);
-            console.log("AG Grid 초기화 완료!");
-
-            // 서버에서 초기 데이터 전송 시 파싱 로직
-            const rawData = `{{ final_results|safe }}` || '[]';
-            try {
-                const initialData = JSON.parse(rawData);
-                if (initialData.length > 0) {
-                    gridApi.setGridOption('rowData', initialData);
-                    updateSummaryCards(initialData);
-                }
-            } catch (e) {
-                console.warn("초기 데이터가 비어있거나 형식이 잘못되었습니다.");
+    // 그리드 생성
+    const gridDiv = document.querySelector('#myGrid');
+    if (gridDiv) {
+        gridApi = agGrid.createGrid(gridDiv, gridOptions);
+        
+        // 초기 데이터 로드
+        const rawData = `{{ final_results|safe }}` || '[]';
+        try {
+            const initialData = JSON.parse(rawData);
+            if (initialData.length > 0) {
+                gridApi.setGridOption('rowData', initialData);
+                updateSummaryCards(initialData);
             }
+        } catch (e) {
+            console.warn("데이터 파싱 오류");
         }
-    };
+    }
+};
 
     // 5. 조회 함수 (Ajax)
     function onSearch() {
@@ -270,43 +278,6 @@
         document.getElementById('stat-unpaid').innerText = Math.floor(totalUnpaid).toLocaleString() + '원';
         document.getElementById('stat-count').innerText = data.length.toLocaleString() + '건';
     }
-
-    // 7. 엑셀 다운로드 (CSV)
-// 7. 엑셀 다운로드 (XLSX 형식)
-// function onBtExport() {
-//     if (!gridApi) return;
-//     if (typeof XLSX === 'undefined') {
-//         alert("엑셀 라이브러리가 로드되지 않았습니다.");
-//         return;
-//     }
-
-//     const rowData = [];
-//     gridApi.forEachNodeAfterFilterAndSort((node) => {
-//         if (node.data) {
-//             const mappedRow = {};
-//             columnDefs.forEach(col => {
-//                 if (col.headerName && (col.field || col.valueGetter)) {
-//                     // 1. valueFormatter가 있으면 적용된 텍스트를 가져옴
-//                     // 2. 없으면 일반 데이터(field)를 가져옴
-//                     let value = gridApi.getCellValue({
-//                         rowNode: node,
-//                         colKey: col.field || col.colId
-//                     });
-                    
-//                     mappedRow[col.headerName] = value ?? "";
-//                 }
-//             });
-//             rowData.push(mappedRow);
-//         }
-//     });
-
-//     const worksheet = XLSX.utils.json_to_sheet(rowData);
-//     const workbook = XLSX.utils.book_new();
-//     XLSX.utils.book_append_sheet(workbook, worksheet, "정산현황");
-//     XLSX.writeFile(workbook, `영업정산현황_${new Date().toISOString().slice(0, 10)}.xlsx`);
-// }
-
-// 
 
 
 async function onBtExport() {
@@ -440,28 +411,7 @@ function insertSubtotalRow(ws, projectName, startLine, endLine, targetRow) {
 
 
 
-window.onload = function() {
-    // --- 날짜 자동 설정 로직 시작 ---
-    const now = new Date();
-    
-    // 1. 종료일: 오늘 날짜 (YYYY-MM-DD 형식)
-    const today = now.toISOString().split('T')[0];
-    
-    // 2. 시작일: 이번 달 1일 (YYYY-MM-01 형식)
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 2).toISOString().split('T')[0].substring(0, 8) + '01';
-    
-    // HTML 요소에 값 넣기
-    document.getElementById('startDate').value = firstDay;
-    document.getElementById('endDate').value = today;
-    // --- 날짜 자동 설정 로직 끝 ---
 
-    // (기존 그리드 초기화 코드)
-    const gridDiv = document.querySelector('#myGrid');
-    if (gridDiv) {
-        gridApi = agGrid.createGrid(gridDiv, gridOptions);
-        // ... 생략 ...
-    }
-};
 
 // 그리드에 적용금액 넣기
 
@@ -540,6 +490,60 @@ function updateGridWithExcelData(excelRows) {
         alert("매칭되는 QT번호를 찾지 못했습니다. 엑셀의 'QT번호' 컬럼을 확인해주세요.");
     }
 }
+
+// -------------------여기서부터 db연결후 인센넣기 코드 시작입니다.-------------------
+
+/**
+ * DB에서 데이터를 가져와 그리드에 반영 (마감하기 버튼 클릭 시)
+ */
+async function onSaveToDB() {
+    const gridApi = window.finishedGridApi; 
+    if (!gridApi) {
+        alert("그리드 API를 찾을 수 없습니다.");
+        return;
+    }
+
+    try {
+        // 1. 서버 DB로부터 데이터 조회 (API 호출)
+        // 실제 운영하시는 서버 환경의 URL로 변경하세요.
+        const response = await fetch("{% url 'get_qt_incentives' %}"); 
+        if (!response.ok) throw new Error("DB 데이터를 불러오는 데 실패했습니다.");
+        
+        const dbData = await response.json(); // [{ "QT번호": "...", "금액": 1000 }, ...] 형식 예상
+
+        let updateCount = 0;
+
+        // 2. 그리드 전체 노드를 순회하며 매칭
+        gridApi.forEachNode((node) => {
+            const gridQtNo = String(node.data['QT번호'] || '').trim();
+            
+            // DB 데이터에서 해당 QT번호 찾기
+            const matchedRow = dbData.find(dbRow => 
+                String(dbRow['QT번호'] || '').trim() === gridQtNo
+            );
+
+            if (matchedRow) {
+                // '금액' 컬럼의 값을 '인센티브' 필드에 반영
+                node.setDataValue('인센티브', matchedRow['금액'] || 0);
+                updateCount++;
+            }
+        });
+
+        if (updateCount > 0) {
+            alert(`DB 조회를 통해 총 ${updateCount}건의 인센티브가 반영되었습니다.`);
+            // 필요 시 통계 재계산 함수 호출
+            // if (typeof calculateStats === 'function') calculateStats();
+        } else {
+            alert("그리드의 QT번호와 일치하는 DB 데이터를 찾지 못했습니다.");
+        }
+
+    } catch (err) {
+        console.error("DB Update Error:", err);
+        alert("오류가 발생했습니다: " + err.message);
+    }
+}
+
+// -------------------여기까지 db연결후 인센넣기 코드 끝입니다.-------------------
 
 
 </script>

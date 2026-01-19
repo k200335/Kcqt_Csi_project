@@ -4,7 +4,8 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/styles/ag-grid.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/styles/ag-theme-balham.css">
 <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.1/dist/ag-grid-community.min.js"></script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <style>
     /* 1. 상하 6:4 분할 레이아웃 */
     #main-layout {
@@ -132,9 +133,50 @@
         { headerName: "영업담당", field: "영업담당", width: 100 },
         { headerName: "QT번호", field: "QT번호", width: 140 },
         { headerName: "실접수일", field: "실접수일", width: 120, valueFormatter: p => p.value ? p.value.split('T')[0] : "" },
-        { headerName: "의뢰기관명", field: "의뢰기관명", width: 220 },
-        { headerName: "공사명", field: "사업명", width: 300 },
-        { headerName: "봉인명", field: "봉인명", width: 220 },
+        { headerName: "의뢰기관명", field: "의뢰기관명", width: 220,
+            cellStyle: params => {
+                // 강조할 의뢰기관(건설사) 목록
+                const companies = [
+                    "현대엔지니어링", "두산건설", "두산중공업", "GS건설", "지에스건설", "극동건설", "금광기업", 
+                    "남광토건", "대우건설","포스코", "가나개발", "케이티에이", "현대건설", 
+                    "현대 건설", "롯데 건설", "롯데건설", "대방건설", "쌍용건설"
+                ];
+
+                if (params.value) {
+                    // 목록 중 하나라도 포함되어 있는지 확인
+                    const isMatch = companies.some(company => params.value.includes(company));
+                    if (isMatch) {
+                        // 파란색 굵은 글씨 적용
+                        return { color: '#0d6efd', fontWeight: 'bold' };
+                    }
+                }
+                return null;
+            }
+        },
+        { headerName: "사업명", field: "사업명", width: 300 },
+        { headerName: "봉인명", field: "봉인명", width: 220,
+        cellStyle: params => {
+                // 강조할 키워드 목록
+                const keywords = [
+                    "가새재", "가설받침", "수직재", "수평재", "멍에", "장선", "동바리", "비계용", 
+                    "강관조인트", "연결조인트", "조립형 비계", "조입철물", "파이프서포", "파이프써포", 
+                    "파이프 써포", "파이프 서포", "받침철물", "가설자재", "가세재", "가설재", 
+                    "강관 조인", "강관서포", "대각재", "비계파이프", "서포트", "트러스", 
+                    "수직제", "수평제", "각형강", "각형 강", "각관", "멍애", "망에", 
+                    "작업대", "작업계단", "발판", "클램프", "크램프"
+                ];
+
+                // 봉인명 데이터가 있고, 위 키워드 중 하나라도 포함되어 있는지 확인
+                if (params.value) {
+                    const isMatch = keywords.some(keyword => params.value.includes(keyword));
+                    if (isMatch) {
+                        // 조건에 맞으면 파란색 굵은 글씨 적용
+                        return { color: '#0d6efd', fontWeight: 'bold' };
+                    }
+                }
+                return null; // 조건에 맞지 않으면 기본 스타일
+            }  
+        },
         { headerName: "시료량", field: "시료량", width: 100 },
         { headerName: "공급가액", field: "공급가액", width: 120, type: 'numericColumn', valueFormatter: p => Math.floor(p.value || 0).toLocaleString() },
         { headerName: "부가세", field: "부가세", width: 110, type: 'numericColumn', valueFormatter: p => Math.floor(p.value || 0).toLocaleString() },
@@ -174,8 +216,6 @@
         { headerName: "지급액합계", field: "지급액합계", width: 120, type: 'numericColumn', valueFormatter: p => Math.floor(p.value || 0).toLocaleString() + "원" }
 
     ];
-
-
 
     // 2. 그리드 옵션 설정
     const gridOptions = {
@@ -218,70 +258,6 @@
         document.getElementById('startDate').value = lastMonth.toISOString().split('T')[0];
     });
 
-    // 4. [핵심] 데이터 조회 함수 (Fetch 연동)
-// function onSearch() {
-//     const start = document.getElementById('startDate').value;
-//     const end = document.getElementById('endDate').value;
-//     const dateType = document.getElementById('dateTarget').value === 'receipt' ? 'save' : 'deposit';
-//     const searchType = document.getElementById('searchType').value;
-//     const searchText = document.getElementById('searchText').value;
-
-//     if (!start || !end) {
-//         alert("조회 기간을 선택해주세요.");
-//         return;
-//     }
-
-//     // 로딩 중 표시 (선택사항)
-//     gridApi.setGridOption('rowData', []);
-//     document.getElementById('detail-content').innerHTML = "데이터를 불러오는 중...";
-
-//     // 서버의 settlement_report 뷰 호출
-//     const url = `/settlement_admin/?start_date=${start}&end_date=${end}&date_type=${dateType}&search_type=${searchType}&search_text=${encodeURIComponent(searchText)}`;
-    
-//     fetch(url)
-//         .then(res => res.json())
-//         .then(data => {
-//             if (data.error) {
-//                 alert("에러 발생: " + data.error);
-//                 return;
-//             }
-//             // 그리드에 데이터 삽입
-//             gridApi.setGridOption('rowData', data);
-            
-//             // 하단 요약 업데이트
-//             updateBottomSummary(data);
-//         })
-//         .catch(err => {
-//             console.error("데이터 로드 실패:", err);
-//             alert("데이터를 가져오는 중 오류가 발생했습니다.");
-//         });
-// }
-
-// 5. 하단 요약 및 상세 표시 함수
-// function updateBottomSummary(data) {
-//     const totalCount = data.length;
-//     const totalSupply = data.reduce((sum, row) => sum + Number(row.공급가액 || 0), 0);
-//     const totalDeposit = data.reduce((sum, row) => sum + Number(row.입금액 || 0), 0);
-
-//     document.getElementById('detail-content').innerHTML = `
-//         <div class="row text-center">
-//             <div class="col-4 border-end">
-//                 <div class="small text-muted">총 건수</div>
-//                 <div class="h5 fw-bold">${totalCount.toLocaleString()}건</div>
-//             </div>
-//             <div class="col-4 border-end">
-//                 <div class="small text-muted">총 공급가액</div>
-//                 <div class="h5 fw-bold text-primary">${totalSupply.toLocaleString()}원</div>
-//             </div>
-//             <div class="col-4">
-//                 <div class="small text-muted">총 입금액</div>
-//                 <div class="h5 fw-bold text-success">${totalDeposit.toLocaleString()}원</div>
-//             </div>
-//         </div>
-//         <hr>
-//         <p class="text-center text-muted mt-2">그리드에서 행을 클릭하면 상세 현장 정보를 볼 수 있습니다.</p>
-//     `;
-// }
 
 function onSearch() {
     const start = document.getElementById('startDate').value;
@@ -337,6 +313,154 @@ function updateTopSummary(data) {
     document.getElementById('stat-deposit').innerText = Math.floor(deposit).toLocaleString();
 }
 
+// 엑셀 다운로드 함수
+async function onExcelDownload() {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('정산보고서');
+
+    worksheet.properties.defaultRowHeight = 24.75;
+
+    // 1. 틀고정
+    worksheet.views = [
+        { 
+            state: 'frozen', 
+            xSplit: 6, // F열까지 고정
+            ySplit: 1  // 첫 번째 행 고정
+        }
+    ];
+
+    const headers = [
+        "담당자", "미인정", "의뢰번호", "지원", "영업담당", "QT번호", "실접수일", 
+        "의뢰기관명", "사업명", "봉인명", "시료량", "공급가액", "부가세", "합계", 
+        "출장비구분", "출장비", "기본료", "정보처리비", "시편제작비", "지게차운임", 
+        "시료수거비", "청구위탁시험비", "적용금액", "인센티브", "입금일", "입금액", 
+        "계산서발행회사명", "계산서발행일", "계산서담당자", "계산서hp", "계산서tel", 
+        "계산서fax", "계산서email", "계산서발행자", "의뢰인성명", "현장전화", 
+        "시료채취자", "품질담당자", "현장담당", "시료명", "공수", "지급액합계"
+    ];
+
+    const colWidths = [
+        6, 6, 14, 6, 8, 10, 10, 30, 60, 30, 18, 13, 9, 13, 9, 9, 9, 9, 9, 9, 9, 9, 15, 12, 12, 15, 20, 15, 12, 15, 15, 15, 20, 12, 12, 15, 12, 12, 12, 20, 10, 15
+    ];
+
+    // 금액 컬럼 리스트 (L=12, M=13, N=14, P=16, Q=17, R=18, S=19, T=20, U=21, V=22, W=23, X=24, Z=26, AP=42)
+    const moneyCols = ['L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Z', 'AP'];
+
+    // 컬럼 설정
+    worksheet.columns = headers.map((h, i) => {
+        const colLetter = worksheet.getColumn(i + 1).letter;
+        const isExceptCol = ['H', 'I', 'J', 'AA'].includes(colLetter);
+        const isMoneyCol = moneyCols.includes(colLetter); // 금액 컬럼 여부
+        
+        return {
+            header: h,
+            key: h,
+            width: colWidths[i] || 15,
+            style: { 
+                font: { size: 10 },
+                alignment: { 
+                    vertical: 'middle', 
+                    // 금액 컬럼은 오른쪽, 제외 컬럼은 왼쪽, 나머지는 가운데
+                    horizontal: isMoneyCol ? 'right' : (isExceptCol ? 'left' : 'center'),
+                    wrapText: isExceptCol 
+                } 
+            }
+        };
+    });
+
+    // 헤더 행 스타일
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 24.75;
+    headerRow.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAD3' } };
+        cell.font = { bold: true, size: 10 };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+    });
+
+    const rowData = [];
+    gridApi.forEachNodeAfterFilterAndSort(node => rowData.push(node.data));
+    const groupedData = rowData.reduce((acc, obj) => {
+        const key = obj['사업명'] || '미지정';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(obj);
+        return acc;
+    }, {});
+
+    const blueKeywords = ["현대", "두산", "GS", "지에스", "극동", "금광", "남광", "대우", "포스코", "가나개발", "케이티에이", "롯데", "대방", "쌍용", "가새재", "가설", "동바리", "비계", "파이프", "서포"];
+
+    let currentRow = 2;
+    Object.keys(groupedData).forEach(project => {
+        const startRow = currentRow;
+        
+        groupedData[project].forEach(data => {
+            const row = worksheet.addRow([
+                data['담당자'], data['미인정'], data['의뢰번호'], data['지원'], data['영업담당'], 
+                data['QT번호'], (data['실접수일'] || "").split('T')[0], data['의뢰기관명'], 
+                data['사업명'], data['봉인명'], data['시료량'],
+                Number(data['공급가액'] || 0), Number(data['부가세'] || 0), 0,
+                data['출장비구분'] == '1' ? "본원" : "지원",
+                Number(data['출장비'] || 0), Number(data['기본료'] || 0), Number(data['정보처리비'] || 0), 
+                Number(data['시편제작비'] || 0), Number(data['지게차운임'] || 0), Number(data['시료수거비'] || 0), 
+                Number(data['청구위탁시험비'] || 0), 0,
+                Number(data['인센티브'] || 0), data['입금일'], Number(data['입금액'] || 0),
+                data['계산서발행회사명'], data['계산서발행일'], data['계산서담당자'], data['계산서hp'], data['계산서tel'], 
+                data['계산서fax'], data['계산서email'], data['계산서발행자'], data['의뢰인성명'], data['현장전화'], 
+                data['시료채취자'], data['품질담당자'], data['현장담당'], data['시료명'], data['공수'], 
+                Number(data['지급액합계'] || 0)
+            ]);
+
+            row.height = 24.75;
+
+            // 숫자 형식 적용
+            moneyCols.forEach(col => {
+                const cell = row.getCell(col);
+                cell.numFmt = '#,##0';
+            });
+
+            row.getCell('N').value = { formula: `L${currentRow}+M${currentRow}` };
+            row.getCell('W').value = { formula: `L${currentRow}-(P${currentRow}-Q${currentRow}-R${currentRow}-S${currentRow}-T${currentRow}-U${currentRow}-V${currentRow})` };
+            
+            // 적용금액 빨간색 스타일 (오른쪽 정렬 유지 위해 font만 수정)
+            row.getCell('W').font = { color: { argb: 'FFFF0000' }, bold: false, size: 10 };
+
+            ['H', 'J'].forEach(colKey => {
+                const cell = row.getCell(colKey);
+                if (blueKeywords.some(k => String(cell.value || "").includes(k))) {
+                    cell.font = { color: { argb: 'FF0D6EFD' }, bold: true, size: 10 };
+                }
+            });
+            currentRow++;
+        });
+
+        const endRow = currentRow - 1;
+        const totalRow = worksheet.addRow([]);
+        totalRow.height = 24.75;
+
+        for (let i = 1; i <= 42; i++) {
+            const cell = totalRow.getCell(i);
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE1E1' } };
+            cell.font = { bold: true, size: 10 };
+        }
+
+        const totalTitleCell = totalRow.getCell('I');
+        totalTitleCell.value = `${project} 합계`;
+        totalTitleCell.font = { bold: true, size: 9 };
+        totalTitleCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+
+        // 합계 수식 및 숫자 형식
+        ['L', 'M', 'N', 'W', 'X', 'Z', 'AP'].forEach(col => {
+            const cell = totalRow.getCell(col);
+            cell.value = { formula: `SUM(${col}${startRow}:${col}${endRow})` };
+            cell.numFmt = '#,##0';
+            cell.alignment = { horizontal: 'right', vertical: 'middle' }; // 합계 금액도 오른쪽 정렬
+        });
+        currentRow++;
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([buffer]), `정산보고서_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
 </script>
 
 {% endblock %}

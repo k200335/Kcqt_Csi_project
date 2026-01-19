@@ -106,5 +106,7 @@ urlpatterns = [
     
     # 새로 추가한 경로 (이 부분이 없어서 404가 뜹니다)
     path('settlement_admin/', views.settlement_report, name='settlement_admin'),
+
+    path('api/get_qt_incentives/', views.get_qt_incentives, name='get_qt_incentives'),
     
 ]

@@ -43,6 +43,9 @@
                 <input type="date" id="end_date" class="form-control form-control-sm" style="width:130px;" value="{{ default_date }}">
                 <button id="btn-fetch" class="btn btn-sm btn-dark" onclick="fetchCsiIssueList(event)" disabled>조회</button>
                 <button id="btn-save" class="btn btn-sm btn-success" onclick="saveMatchingData()" disabled>DB 저장</button>
+                <button id="btn-excel" class="btn btn-sm btn-outline-success" onclick="downloadExcel()" disabled>
+                    <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
+                </button>
             </div>
         </div>
         
@@ -124,7 +127,7 @@
                     <input type="text" id="search_qt_no" class="form-control" placeholder="검색어 입력">
                 </div>
                 <button class="btn btn-sm btn-dark" onclick="fetchPanel4Data()">DB 불러오기</button>
-                <button class="btn btn-sm btn-primary" onclick="savePanel4Data()">DB 저장</button>
+                <button id="btn-save-4" class="btn btn-sm btn-primary" onclick="savePanel4Data()">DB 저장</button>
             </div>
         </div>
 
@@ -133,9 +136,9 @@
                 <thead class="table-light sticky-top">
                     <tr>
                         <th><input type="checkbox" id="check-all-4"></th> <th>ID</th>
-                        <!-- <th style="width: 80px;">ID</th> -->
                         <th>QT번호</th>
                         <th style="width: 200px;">금액</th>
+                        <th>비고</th> </tr>
                     </tr>
                 </thead>
                 <tbody id="panel-4-body">
@@ -154,6 +157,10 @@
         }
         if (e.target.id === 'check-all-2') {
             document.querySelectorAll('#qt-matching-body .row-check-2').forEach(cb => cb.checked = e.target.checked);
+        }
+        // ✨ 네 번째 화면(현재 작업 중인 화면) 전체 선택 추가
+        if (e.target.id === 'check-all-4') {
+            document.querySelectorAll('#panel-4-body .row-checkbox-4').forEach(cb => cb.checked = e.target.checked);
         }
     });
 
@@ -232,6 +239,30 @@ async function saveMatchingData() {
         alert("서버와 통신 중 에러가 발생했습니다.");
     }
 }
+
+function downloadExcel() {
+    // 1. 테이블 요소 가져오기
+    // 테이블 전체를 가져오기 위해 상위 table 태그를 선택하거나 id를 지정하세요.
+    // 여기서는 table-custom 클래스를 가진 테이블을 대상으로 합니다.
+    const table = document.querySelector('.table-custom');
+    
+    // 2. 워크북 생성
+    const wb = XLSX.utils.book_new();
+    
+    // 3. 테이블 데이터를 시트로 변환 
+    // display: none인 요소나 체크박스 열을 제외하고 싶을 때 설정을 추가할 수 있습니다.
+    const ws = XLSX.utils.table_to_sheet(table);
+
+    // 4. 파일명 설정 (오늘 날짜 포함)
+    const today = new Date().toISOString().slice(0, 10);
+    const filename = `CSI_성적서_매칭리스트_${today}.xlsx`;
+
+    // 5. 엑셀 파일 생성 및 다운로드
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    XLSX.writeFile(wb, filename);
+}
+
+// ---------------------------------여기까지 1번 끝--------------------------------------
 
     /* 2번 영역 조회 (준비중) */
     /** 2번 영역: CSI 발급대기 정보 수집 (의뢰번호, 대기일자, 접수번호 순서) **/
@@ -594,12 +625,12 @@ function getCookie(name) {
 }
 
 // ------------------------여기서 부터 마지막 4번째 화면---------------
-// 1. 파일 선택 창 열기
+// [1] 파일 선택 창 열기
 function triggerExcelUpload4() {
     document.getElementById('excel_file_4').click();
 }
 
-// 2. 엑셀 파일 읽기 및 화면 표시
+// [2] 엑셀 파일 읽기 (C열 비고 추가)
 async function uploadExcel4(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -611,33 +642,28 @@ async function uploadExcel4(event) {
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(arrayBuffer);
             
-            const worksheet = workbook.getWorksheet(1); // 첫 번째 시트
+            const worksheet = workbook.getWorksheet(1);
             const excelData = [];
 
-            // 엑셀의 각 행을 순회 (첫 번째 행이 제목이라고 가정하고 2번째 행부터 시작)
             worksheet.eachRow((row, rowNumber) => {
                 if (rowNumber > 1) {
-                    // 엑셀 양식에 따라 열 번호(1, 2...)를 조정하세요.
-                    // 예: 1열이 QT번호, 2열이 금액인 경우
                     const qtNo = row.getCell(1).text; 
                     const amount = row.getCell(2).value;
+                    const memo = row.getCell(3).text; // ✨ 추가: C열 읽기
 
                     if (qtNo) {
                         excelData.push({
-                            id: '', // 엑셀 업로드 시 ID는 비워둠 (DB 저장 시 생성)
+                            id: '',
                             receipt_code: qtNo,
-                            applied_amount: amount
+                            applied_amount: amount,
+                            memo: memo // ✨ 추가
                         });
                     }
                 }
             });
 
-            // 추출된 데이터를 화면 표에 렌더링
             renderPanel4Table(excelData);
-            
-            // 파일 입력 초기화 (같은 파일 다시 올릴 수 있게)
             event.target.value = ''; 
-            
         } catch (error) {
             console.error(error);
             alert("엑셀 파일을 읽는 중 오류가 발생했습니다.");
@@ -646,32 +672,30 @@ async function uploadExcel4(event) {
     reader.readAsArrayBuffer(file);
 }
 
-// 3. 일반 HTML 표에 데이터 뿌리기
+// [3] 테이블 렌더링 함수 (비고 입력란 생성)
 function renderPanel4Table(dataList, isDatabaseFetch = false) {
     const tbody = document.getElementById('panel-4-body');
     const totalCount = document.getElementById('total-count-4');
+    const checkAll = document.getElementById('check-all-4');
     
+    if (checkAll) checkAll.checked = false; 
     tbody.innerHTML = ''; 
     totalCount.innerText = dataList.length;
 
     if (dataList.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">데이터가 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">데이터가 없습니다.</td></tr>'; // ✨ colspan 5로 수정
         return;
     }
 
-    dataList.forEach((item, index) => {
+    dataList.forEach((item) => {
         const row = document.createElement('tr');
-        const numAmount = Number(item.applied_amount || 0);
-        const formattedAmount = numAmount.toLocaleString();
-
-        // 🌟 수정 포인트: DB에서 불러온 데이터일 때만 ID를 표시하고, 아니면 비워둡니다.
-        // item.id가 실제로 존재할 때만 ID를 넣고, 엑셀 업로드 시에는 공백 처리
+        const formattedAmount = Number(item.applied_amount || 0).toLocaleString();
         const displayId = (isDatabaseFetch && item.id) ? item.id : "";
         const idClass = displayId ? "db-id" : "new-id";
 
         row.innerHTML = `
             <td><input type="checkbox" class="row-checkbox-4"></td>
-            <td class="${idClass} text-center">${displayId}</td>
+            <td class="${idClass} text-center font-monospace">${displayId}</td>
             <td>
                 <input type="text" class="form-control form-control-sm text-center row-qt" value="${item.receipt_code || ''}">
             </td>
@@ -682,39 +706,25 @@ function renderPanel4Table(dataList, isDatabaseFetch = false) {
                        onfocus="this.value = this.value.replace(/,/g, '')"
                        onblur="this.value = Number(this.value).toLocaleString()">
             </td>
+            <td>
+                <input type="text" class="form-control form-control-sm row-memo" 
+                       value="${item.memo || ''}" placeholder="비고 입력"> </td>
         `;
         tbody.appendChild(row);
     });
 }
-// 1. 페이지 로드 시 "전체 선택" 이벤트 연결
-document.addEventListener('DOMContentLoaded', function() {
-    const checkAll = document.getElementById('check-all-4');
-    if (checkAll) {
-        checkAll.addEventListener('change', function() {
-            const checkboxes = document.querySelectorAll('.row-checkbox-4');
-            checkboxes.forEach(cb => cb.checked = this.checked);
-        });
-    }
-});
 
-// 2. [DB 불러오기] 함수 (작성하신 코드 최적화)
+// [4] DB 불러오기 함수
 async function fetchPanel4Data() {
-    // 1. 검색창(QT번호) 입력값 가져오기
     const searchInput = document.getElementById('search_qt_no');
     const searchVal = searchInput ? searchInput.value.trim() : "";
-    
-    // 2. API 호출
     const url = `/api/get_panel4_data?qt_no=${encodeURIComponent(searchVal)}`;
     
     try {
         const response = await fetch(url);
         const result = await response.json();
-
         if (result.success) {
-            // 3. 받은 데이터를 테이블에 렌더링
-            renderPanel4Table(result.data, true);
-
-            // ✨ [추가] 조회 결과 알림창
+            renderPanel4Table(result.data, true); // 여기서 renderPanel4Table이 비고를 그려줍니다.
             if (result.data.length > 0) {
                 alert(`조회 성공: 총 ${result.data.length}건의 데이터를 불러왔습니다.`);
             } else {
@@ -729,50 +739,13 @@ async function fetchPanel4Data() {
     }
 }
 
-// 3. [데이터 렌더링] 함수
-function renderPanel4Table(dataList, isDatabaseFetch = false) {
-    const tbody = document.getElementById('panel-4-body');
-    const totalCount = document.getElementById('total-count-4');
-    const checkAll = document.getElementById('check-all-4');
-    
-    if (checkAll) checkAll.checked = false; // 새로 불러올 때 상단 체크 해제
-    tbody.innerHTML = ''; 
-    totalCount.innerText = dataList.length;
-
-    if (dataList.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">데이터가 없습니다.</td></tr>';
-        return;
-    }
-
-    dataList.forEach((item) => {
-        const row = document.createElement('tr');
-        const formattedAmount = Number(item.applied_amount || 0).toLocaleString();
-        const displayId = (isDatabaseFetch && item.id) ? item.id : "";
-
-        row.innerHTML = `
-            <td><input type="checkbox" class="row-checkbox-4"></td>
-            <td class="text-center font-monospace">${displayId}</td>
-            <td>
-                <input type="text" class="form-control form-control-sm text-center row-qt" value="${item.receipt_code || ''}">
-            </td>
-            <td>
-                <input type="text" class="form-control form-control-sm text-end fw-bold row-amount" 
-                       style="color: #198754;" 
-                       value="${formattedAmount}" 
-                       onfocus="this.value = this.value.replace(/,/g, '')"
-                       onblur="this.value = Number(this.value).toLocaleString()">
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// 4. [DB 저장] 함수 (수정/신규 분기)
+// [5] DB 저장 함수 (비고 값 추출 로직 반영)
 async function savePanel4Data() {
+    const saveBtn = document.getElementById('btn-save-4'); // 버튼 가져오기
     const rows = document.querySelectorAll('#panel-4-body tr');
     const new_items = [];
     const updated_items = [];
-    const newRowsDom = []; // ✨ 신규 행만 따로 담기
+    const newRowsDom = []; 
 
     rows.forEach(row => {
         const checkbox = row.querySelector('.row-checkbox-4');
@@ -782,21 +755,30 @@ async function savePanel4Data() {
         const qt = row.querySelector('.row-qt')?.value.trim();
         const amountStr = row.querySelector('.row-amount')?.value.replace(/,/g, '').trim();
         const amount = amountStr ? Number(amountStr) : 0;
+        const memo = row.querySelector('.row-memo')?.value.trim() || "";
 
         if (!qt) return;
 
         if (!id) {
-            new_items.push({ receipt_code: qt, applied_amount: amount });
-            newRowsDom.push(row); // 신규 행 저장
+            new_items.push({ receipt_code: qt, applied_amount: amount, memo: memo });
+            newRowsDom.push(row); 
         } else {
-            updated_items.push({ id: id, receipt_code: qt, applied_amount: amount });
+            updated_items.push({ id: id, receipt_code: qt, applied_amount: amount, memo: memo });
         }
     });
 
     if (new_items.length === 0 && updated_items.length === 0) return alert("저장할 항목을 체크해 주세요.");
-    if (!confirm(`저장하시겠습니까?`)) return;
+    if (!confirm(`총 ${new_items.length + updated_items.length}건을 저장하시겠습니까?`)) return;
 
     try {
+        // 🌟 1. 로딩 표시 시작
+        if (saveBtn) {
+            saveBtn.disabled = true; // 중복 클릭 방지
+            saveBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 저장 중...`;
+        }
+        // 마우스 커서도 모래시계로 변경
+        document.body.style.cursor = 'wait';
+
         const response = await fetch('/api/save_panel4_data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -806,23 +788,31 @@ async function savePanel4Data() {
         const res = await response.json();
         
         if (res.success) {
-            // ✨ 1. 신규 저장된 행들에 서버에서 받은 ID 번호 부여
             if (res.created_ids && res.created_ids.length > 0) {
                 newRowsDom.forEach((row, index) => {
-                    row.cells[1].innerText = res.created_ids[index]; // ID 칸에 번호 입력
-                    row.cells[1].style.color = "blue"; // 새로 생긴 번호는 파란색으로 표시(선택)
+                    row.cells[1].innerText = res.created_ids[index];
+                    row.cells[1].style.color = "blue";
                 });
             }
-
-            // ✨ 2. 체크박스 해제 및 완료 알림
             rows.forEach(row => {
                 const cb = row.querySelector('.row-checkbox-4');
                 if (cb) cb.checked = false;
             });
-
             alert(`저장 완료! (총 ${new_items.length + updated_items.length}건)`);
+        } else {
+            alert("저장 실패: " + res.message);
         }
-    } catch (e) { console.error(e); alert("오류 발생"); }
+    } catch (e) { 
+        console.error(e); 
+        alert("오류 발생: " + e.message); 
+    } finally {
+        // 🌟 2. 로딩 표시 종료 (성공하든 에러가 나든 원래대로 복구)
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerText = "DB 저장";
+        }
+        document.body.style.cursor = 'default';
+    }
 }
 
 // ------------------------권한제어--------------STR
