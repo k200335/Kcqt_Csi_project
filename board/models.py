@@ -65,3 +65,36 @@ class CsiReceipt(models.Model):
 
     def __str__(self):
         return self.project
+    
+
+
+    # -------------------------------여기서 부터 일정관리---------------------
+
+
+# 1. 담당자 및 프로젝트 정보 (MySQL)
+class ClientProject(models.Model):
+    reg_name = models.CharField(max_length=50, verbose_name="담당자 성함")
+    reg_phone = models.CharField(max_length=20, unique=True, verbose_name="연락처") # 중복 방지
+    reg_email = models.EmailField(max_length=100, blank=True, null=True, verbose_name="이메일") # 추가됨
+    reg_company = models.CharField(max_length=100, verbose_name="의뢰기관명")
+    reg_project_name = models.CharField(max_length=200, verbose_name="MSSQL 사업명")
+    is_linked = models.BooleanField(default=False, verbose_name="MSSQL 연결 여부")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.reg_name} ({self.reg_company})"
+
+# 2. 상담 메모 (1:N 관계)
+class ConsultMemo(models.Model):
+    project = models.ForeignKey(ClientProject, on_delete=models.CASCADE, related_name='memos')
+    content = models.TextField(verbose_name="상담내용")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+# 3. 업무 예약 (1:N 관계)
+class TaskReservation(models.Model):
+    project = models.ForeignKey(ClientProject, on_delete=models.CASCADE, related_name='tasks')
+    category = models.CharField(max_length=20) # EST(견적), TAX(세발), EXAM(시험)
+    task_date = models.DateField()
+    description = models.CharField(max_length=255)
+    is_completed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)

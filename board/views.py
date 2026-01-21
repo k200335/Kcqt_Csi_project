@@ -1,9 +1,12 @@
 import json
 import time
 from django.http import JsonResponse
+from django.http import HttpResponse
+from django.utils import timezone  # 현재 시간 저장을 위해 추가
 from django.shortcuts import render
 from django.db import connection, connections
 from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction  # 이 줄이 반드시 있어야 합니다!
 from selenium.webdriver.common.action_chains import ActionChains
 # 셀레늄 및 크롤링 관련
 from selenium import webdriver
@@ -24,12 +27,14 @@ from selenium.common.exceptions import UnexpectedAlertPresentException, NoAlertP
 
 import xlwings as xw
 from io import BytesIO
-from django.http import HttpResponse
 import os
 
 import pythoncom
 from django.conf import settings
 import uuid # 고유 파일명을 위해 추가
+from .models import ClientProject
+
+
 
 
 
@@ -1980,6 +1985,151 @@ def download_field_excel(request):
 
 #     return render(request, 'receipt_settle_admin.html', {'final_results': json.dumps([], ensure_ascii=False)})
 
+# def receipt_settle_admin(request):
+#     start_date = request.GET.get('start_date')
+    
+#     if start_date:
+#         try:
+#             date_type = request.GET.get('date_type')
+#             end_date = request.GET.get('end_date')
+#             search_type = request.GET.get('search_type')
+#             search_text = request.GET.get('search_text', '').strip()
+
+#             # --- 1. MySQL 담당자 정보 조회 ---
+#             mysql_manager_map = {}
+#             with connections['default'].cursor() as mysql_cursor:
+#                 # search_type이 'sales_man'일 경우 필터링 적용
+#                 where_sql = "WHERE 담당자 LIKE %s" if search_type == 'sales_man' and search_text else ""
+#                 param = [f"%{search_text}%"] if where_sql else []
+                
+#                 mysql_query = f"SELECT 의뢰번호, 담당자, 미인정 FROM csi_receipts {where_sql} ORDER BY 의뢰번호 DESC LIMIT 5000"
+#                 mysql_cursor.execute(mysql_query, param)
+#                 for row in mysql_cursor.fetchall():
+#                     mysql_manager_map[str(row[0]).strip()] = {
+#                         '담당자': row[1],
+#                         '미인정': row[2]  # 보통 0/1 혹은 Y/N으로 저장되어 있을 것입니다.
+#                     }
+
+#             # --- 2. MSSQL 데이터 조회 ---
+#             final_results = []
+#             if mysql_manager_map:
+#                 req_codes = list(mysql_manager_map.keys())
+#                 chunk_size = 500
+                
+#                 with connections['mssql'].cursor() as mssql_cursor:
+#                     for i in range(0, len(req_codes), chunk_size):
+#                         chunk = req_codes[i : i + chunk_size]
+#                         placeholders = ', '.join(['%s'] * len(chunk))
+                        
+#                         # MSSQL 메인 쿼리
+#                         mssql_query = f"""
+#                         SELECT 
+#                             c.request_code as 의뢰번호, c.sales as 영업담당, c.save_date as 실접수일,
+#                             a.receipt_code as QT번호, a.builder as 의뢰기관명, a.construction as 사업명,
+#                             a.cm_name as 의뢰인성명, a.cm_tel as 현장전화, a.get_name as 시료채취자, a.qm_name as 품질담당자,
+#                             b.specimen as 봉인명, b.specimen_qty as 시료량,
+#                             d.supply_value as 공급가액, d.vat as 부가세, (d.supply_value + d.vat) as 합계,
+#                             d.basic as 기본료, d.process as 정보처리비, d.sample as 시편제작비,
+#                             d.tran_set as 출장비구분, d.[tran] as 출장비,
+#                             e.deposit_day as 입금일, e.deposit as 입금액,
+#                             f.company as 계산서발행회사명, f.issue_date as 계산서발행일, f.manager as 계산서담당자,
+#                             f.hp as 계산서hp, f.tel as 계산서tel, f.fax as 계산서fax, f.email as 계산서email, f.issue_employee as 계산서발행자,
+#                             g.price as 청구위탁시험비,
+#                             (SELECT SUM(ei_price) FROM dbo.Examination_Item 
+#                             WHERE receipt_code = a.receipt_code AND item_name LIKE '%%지게차%%') as 지게차운임
+#                         FROM dbo.Receipt c
+#                         LEFT JOIN dbo.Customer a ON c.receipt_code = a.receipt_code
+#                         LEFT JOIN dbo.Specimen_info b ON c.receipt_code = b.receipt_code
+#                         LEFT JOIN dbo.Estimate d ON c.receipt_code = d.receipt_code
+#                         LEFT JOIN dbo.Deposit e ON c.receipt_code = e.receipt_code
+#                         LEFT JOIN dbo.Tax_Manager f ON c.receipt_code = f.receipt_code
+#                         LEFT JOIN dbo.Consignment g ON c.receipt_code = g.receipt_code
+#                         WHERE (
+#                             (c.request_code LIKE 'RQ-%%' AND c.request_code IN ({placeholders}))
+#                             OR 
+#                             (c.request_code NOT LIKE 'RQ-%%' AND c.receipt_code IN ({placeholders}))
+#                         )
+#                     """
+                        
+#                         # 동적 조건 추가
+#                         dynamic_where = ""
+#                         mssql_params = chunk + chunk # placeholders가 2개이므로 2번 넣음
+                        
+#                         # if start_date and end_date:
+#                         #     col = "c.save_date" if date_type == "receipt" else "c.save_date" # 필요시 d.deposit_day 등으로 수정
+#                         #     dynamic_where += f" AND {col} BETWEEN %s AND %s"
+#                         #     mssql_params.extend([start_date, end_date])
+
+#                         if start_date and end_date:
+#                             if date_type == "receipt":
+#                                 col = "c.save_date"
+#                                 # 실접수일은 하이픈 형식이므로 그대로 사용
+#                                 query_start = start_date 
+#                                 query_end = end_date
+#                             elif date_type == "deposit":
+#                                 col = "e.deposit_day"
+#                                 # 🌟 입금일은 하이픈을 제거하여 '20261216' 형태로 변환
+#                                 query_start = start_date.replace('-', '')
+#                                 query_end = end_date.replace('-', '')
+#                             else:
+#                                 col = "c.save_date"
+#                                 query_start = start_date
+#                                 query_end = end_date
+                                
+#                             dynamic_where += f" AND {col} BETWEEN %s AND %s"
+#                             mssql_params.extend([query_start, query_end]) # 변환된 날짜 파라미터 삽입
+                        
+#                         mssql_cursor.execute(mssql_query + dynamic_where, mssql_params)
+#                         columns = [col[0] for col in mssql_cursor.description]
+#                         current_chunk_rows = [dict(zip(columns, row)) for row in mssql_cursor.fetchall()]
+
+#                         # 🌟 3. MSSQL 결과의 QT번호로 MySQL 'winapps_현장팀' 조회 (지게차 방식)
+#                         qt_list = [str(r.get('QT번호')).strip() for r in current_chunk_rows if r.get('QT번호')]
+#                         field_team_map = {}
+
+#                         if qt_list:
+#                             with connections['default'].cursor() as my_cursor:
+#                                 f_placeholders = ', '.join(['%s'] * len(qt_list))
+#                                 f_sql = f"""
+#                                     SELECT 접수번호, 현장담당, 시료명, 공수, (출장비 + 추가) as 지급액합계 
+#                                     FROM winapps_현장팀 
+#                                     WHERE 접수번호 IN ({f_placeholders})
+#                                 """
+#                                 my_cursor.execute(f_sql, qt_list)
+#                                 f_cols = [c[0] for c in my_cursor.description]
+#                                 for f_row in my_cursor.fetchall():
+#                                     f_dict = dict(zip(f_cols, f_row))
+#                                     field_team_map[str(f_dict['접수번호']).strip()] = f_dict
+
+#                         # 🌟 4. 최종 데이터 병합
+#                         for row_dict in current_chunk_rows:
+#                             req_no = str(row_dict.get('의뢰번호', '')).strip()
+#                             qt_no = str(row_dict.get('QT번호', '')).strip()
+
+#                             # 🌟 수정된 맵 구조에서 담당자 정보를 가져옴
+#                             manager_info = mysql_manager_map.get(req_no, {'담당자': '-', '미인정': '-'})
+#                             row_dict['담당자'] = manager_info.get('담당자', '-')
+#                             row_dict['미인정'] = manager_info.get('미인정', '-') # 🌟 미인정 데이터 추가
+                            
+#                             f_info = field_team_map.get(qt_no, {})
+#                             row_dict['현장담당'] = f_info.get('현장담당', '-')
+#                             row_dict['시료명'] = f_info.get('시료명', '-')
+#                             row_dict['공수'] = f_info.get('공수', 0)
+#                             row_dict['지급액합계'] = f_info.get('지급액합계', 0)
+
+#                             final_results.append(row_dict)
+
+#             return JsonResponse(final_results, safe=False)
+        
+#         except Exception as e:
+#             # 에러 발생 시 HTML이 아닌 JSON으로 에러 메시지 반환 (중요!)
+#             return JsonResponse({"error": str(e)}, status=500)
+
+#     return render(request, 'receipt_settle_admin.html', {'final_results': json.dumps([], ensure_ascii=False)})
+
+
+
+
 def receipt_settle_admin(request):
     start_date = request.GET.get('start_date')
     
@@ -1990,10 +2140,9 @@ def receipt_settle_admin(request):
             search_type = request.GET.get('search_type')
             search_text = request.GET.get('search_text', '').strip()
 
-            # --- 1. MySQL 담당자 정보 조회 ---
+            # --- 1. MySQL 조회 (사용자님 코드 그대로) ---
             mysql_manager_map = {}
             with connections['default'].cursor() as mysql_cursor:
-                # search_type이 'sales_man'일 경우 필터링 적용
                 where_sql = "WHERE 담당자 LIKE %s" if search_type == 'sales_man' and search_text else ""
                 param = [f"%{search_text}%"] if where_sql else []
                 
@@ -2002,11 +2151,13 @@ def receipt_settle_admin(request):
                 for row in mysql_cursor.fetchall():
                     mysql_manager_map[str(row[0]).strip()] = {
                         '담당자': row[1],
-                        '미인정': row[2]  # 보통 0/1 혹은 Y/N으로 저장되어 있을 것입니다.
+                        '미인정': row[2]
                     }
 
             # --- 2. MSSQL 데이터 조회 ---
             final_results = []
+            seen_request_codes = set() # 🌟 [중복 방지용] 이미 처리한 의뢰번호 기억
+
             if mysql_manager_map:
                 req_codes = list(mysql_manager_map.keys())
                 chunk_size = 500
@@ -2016,7 +2167,7 @@ def receipt_settle_admin(request):
                         chunk = req_codes[i : i + chunk_size]
                         placeholders = ', '.join(['%s'] * len(chunk))
                         
-                        # MSSQL 메인 쿼리
+                        # 🌟 사용자님이 주신 "원래 쿼리" 그대로 (GROUP BY/MAX/SUM 전부 제거)
                         mssql_query = f"""
                         SELECT 
                             c.request_code as 의뢰번호, c.sales as 영업담당, c.save_date as 실접수일,
@@ -2044,72 +2195,56 @@ def receipt_settle_admin(request):
                             OR 
                             (c.request_code NOT LIKE 'RQ-%%' AND c.receipt_code IN ({placeholders}))
                         )
-                    """
+                        """
                         
-                        # 동적 조건 추가
                         dynamic_where = ""
-                        mssql_params = chunk + chunk # placeholders가 2개이므로 2번 넣음
-                        
-                        # if start_date and end_date:
-                        #     col = "c.save_date" if date_type == "receipt" else "c.save_date" # 필요시 d.deposit_day 등으로 수정
-                        #     dynamic_where += f" AND {col} BETWEEN %s AND %s"
-                        #     mssql_params.extend([start_date, end_date])
+                        mssql_params = chunk + chunk 
 
                         if start_date and end_date:
                             if date_type == "receipt":
-                                col = "c.save_date"
-                                # 실접수일은 하이픈 형식이므로 그대로 사용
-                                query_start = start_date 
-                                query_end = end_date
+                                col, query_start, query_end = "c.save_date", start_date, end_date
                             elif date_type == "deposit":
-                                col = "e.deposit_day"
-                                # 🌟 입금일은 하이픈을 제거하여 '20261216' 형태로 변환
-                                query_start = start_date.replace('-', '')
-                                query_end = end_date.replace('-', '')
+                                col, query_start, query_end = "e.deposit_day", start_date.replace('-', ''), end_date.replace('-', '')
                             else:
-                                col = "c.save_date"
-                                query_start = start_date
-                                query_end = end_date
+                                col, query_start, query_end = "c.save_date", start_date, end_date
                                 
                             dynamic_where += f" AND {col} BETWEEN %s AND %s"
-                            mssql_params.extend([query_start, query_end]) # 변환된 날짜 파라미터 삽입
+                            mssql_params.extend([query_start, query_end])
                         
                         mssql_cursor.execute(mssql_query + dynamic_where, mssql_params)
                         columns = [col[0] for col in mssql_cursor.description]
                         current_chunk_rows = [dict(zip(columns, row)) for row in mssql_cursor.fetchall()]
 
-                        # 🌟 3. MSSQL 결과의 QT번호로 MySQL 'winapps_현장팀' 조회 (지게차 방식)
+                        # --- 3. 현장팀 조회 및 최종 데이터 병합 ---
                         qt_list = [str(r.get('QT번호')).strip() for r in current_chunk_rows if r.get('QT번호')]
                         field_team_map = {}
-
                         if qt_list:
                             with connections['default'].cursor() as my_cursor:
                                 f_placeholders = ', '.join(['%s'] * len(qt_list))
-                                f_sql = f"""
-                                    SELECT 접수번호, 현장담당, 시료명, 공수, (출장비 + 추가) as 지급액합계 
-                                    FROM winapps_현장팀 
-                                    WHERE 접수번호 IN ({f_placeholders})
-                                """
+                                f_sql = f"SELECT 접수번호, 현장담당, 시료명, 공수, (출장비 + 추가) as 지급액합계 FROM winapps_현장팀 WHERE 접수번호 IN ({f_placeholders})"
                                 my_cursor.execute(f_sql, qt_list)
                                 f_cols = [c[0] for c in my_cursor.description]
                                 for f_row in my_cursor.fetchall():
                                     f_dict = dict(zip(f_cols, f_row))
                                     field_team_map[str(f_dict['접수번호']).strip()] = f_dict
 
-                        # 🌟 4. 최종 데이터 병합
                         for row_dict in current_chunk_rows:
                             req_no = str(row_dict.get('의뢰번호', '')).strip()
+                            
+                            # 🌟 [해결 포인트] MySQL 번호가 기준이므로, 여기서 이미 결과에 담긴 번호면 건너뜁니다.
+                            if req_no in seen_request_codes:
+                                continue
+                            
+                            seen_request_codes.add(req_no)
                             qt_no = str(row_dict.get('QT번호', '')).strip()
-
-                            # 🌟 수정된 맵 구조에서 담당자 정보를 가져옴
                             manager_info = mysql_manager_map.get(req_no, {'담당자': '-', '미인정': '-'})
                             row_dict['담당자'] = manager_info.get('담당자', '-')
-                            row_dict['미인정'] = manager_info.get('미인정', '-') # 🌟 미인정 데이터 추가
+                            row_dict['미인정'] = manager_info.get('미인정', '-')
                             
                             f_info = field_team_map.get(qt_no, {})
                             row_dict['현장담당'] = f_info.get('현장담당', '-')
                             row_dict['시료명'] = f_info.get('시료명', '-')
-                            row_dict['공수'] = f_info.get('공수', 0)
+                            row_dict['공수'] = f_info.get('공수', '0')
                             row_dict['지급액합계'] = f_info.get('지급액합계', 0)
 
                             final_results.append(row_dict)
@@ -2117,10 +2252,13 @@ def receipt_settle_admin(request):
             return JsonResponse(final_results, safe=False)
         
         except Exception as e:
-            # 에러 발생 시 HTML이 아닌 JSON으로 에러 메시지 반환 (중요!)
-            return JsonResponse({"error": str(e)}, status=500)
+            return JsonResponse([], safe=False) # 에러 시 빈 배열 반환하여 JS 에러 방지
 
     return render(request, 'receipt_settle_admin.html', {'final_results': json.dumps([], ensure_ascii=False)})
+
+
+
+
 
 # --------------------------------4번 분할화면 DB입력------STR
 # [조회] QT번호 검색 기능을 포함한 데이터 불러오기
@@ -2444,3 +2582,68 @@ def get_qt_incentives(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 # -----------------------여기까지 db연결 후 인센넣기-----end
+
+# 1. [조회] 메인 페이지 로드
+def notice(request):
+    client_list = ClientProject.objects.all().order_by('-created_at')
+    context = {
+        'username': request.user.username if request.user.is_authenticated else "방문자",
+        'client_list': client_list,
+    }
+    return render(request, 'notice.html', context)
+
+# 2. [확인] 사업명 입력 시 DB에 있는지 미리 체크하는 기능
+def get_project_detail(request):
+    project_name = request.GET.get('project_name')
+    if not project_name:
+        return JsonResponse({'status': 'error', 'message': '사업명을 입력해주세요.'})
+
+    try:
+        with connections['mssql'].cursor() as cursor:
+            # 사업명으로 시공사(builder)만 빠르게 조회
+            query = "SELECT TOP 1 builder FROM dbo.Customer WHERE construction = %s"
+            cursor.execute(query, [project_name])
+            row = cursor.fetchone()
+
+            if row:
+                return JsonResponse({'status': 'success', 'builder': row[0]})
+            else:
+                return JsonResponse({'status': 'empty', 'message': '신규 현장입니다. 시공사를 직접 입력하세요.'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+# 3. [저장] 최종 등록 (DB 확인 로직 포함)
+
+
+@csrf_exempt
+def register_client(request):
+    if request.method == 'POST':
+        try:
+            # 기존 코드처럼 POST 데이터를 수신
+            name = request.POST.get('reg_name')
+            phone = request.POST.get('reg_phone')
+            email = request.POST.get('reg_email')
+            project_name = request.POST.get('reg_project_name')
+            company = request.POST.get('reg_company') 
+
+            # 기존 코드처럼 직접 SQL 실행
+            with connections['default'].cursor() as cursor:
+                sql = """
+                    INSERT INTO client_projects (
+                        reg_name, reg_phone, reg_email, reg_company, 
+                        reg_project_name, is_linked, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                """
+                cursor.execute(sql, [
+                    name, phone, email, 
+                    company if company else "미지정",
+                    project_name,
+                    1 if company else 0
+                ])
+
+            return JsonResponse({"status": "success", "message": "성공적으로 저장되었습니다."})
+
+        except Exception as e:
+            # 여기서 (1062, "Duplicate entry...") 에러가 난다면 
+            # 100% DB의 reg_phone에 Unique 설정이 걸려있는 것입니다.
+            return JsonResponse({"status": "error", "message": str(e)})
