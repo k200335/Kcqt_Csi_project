@@ -2647,3 +2647,63 @@ def register_client(request):
             # 여기서 (1062, "Duplicate entry...") 에러가 난다면 
             # 100% DB의 reg_phone에 Unique 설정이 걸려있는 것입니다.
             return JsonResponse({"status": "error", "message": str(e)})
+        
+        
+def search_clients(request):
+    keyword = request.GET.get('keyword', '')
+    
+    try:
+        with connections['default'].cursor() as cursor:
+            # 이름(reg_name)으로 검색
+            sql = "SELECT reg_name, reg_phone, reg_company, reg_project_name FROM client_projects WHERE reg_name LIKE %s"
+            cursor.execute(sql, [f"%{keyword}%"])
+            
+            # 결과 가공
+            columns = [col[0] for col in cursor.description]
+            data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            
+            return JsonResponse({'status': 'success', 'data': data})
+            
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+    
+def get_project_full_details(request):
+    project_name = request.GET.get('project_name', '').strip()
+    
+    # %%를 사용하여 파이썬의 문자열 치환 에러를 방지하고
+    # LIKE를 사용하여 사업명 매칭률을 높였습니다.
+    mssql_query = """
+        SELECT 
+            a.request_code, a.receipt_code, 
+            CONVERT(VARCHAR(10), a.save_date, 120) AS save_date,
+            c.specimen,
+            ISNULL(d.supply_value, 0) as supply_value,
+            ISNULL(e.deposit, 0) as deposit,
+            e.deposit_day,
+            f.issue_date, f.company
+        FROM dbo.Receipt a
+        INNER JOIN dbo.Customer b      ON a.receipt_code = b.receipt_code
+        LEFT JOIN dbo.Specimen_info c  ON a.receipt_code = c.receipt_code
+        LEFT JOIN dbo.Estimate d       ON a.receipt_code = d.receipt_code
+        LEFT JOIN dbo.Deposit e        ON a.receipt_code = e.receipt_code
+        LEFT JOIN dbo.Tax_Manager f    ON a.receipt_code = f.receipt_code
+        WHERE b.construction LIKE %s 
+          AND a.receipt_code NOT LIKE 'X%%'
+        ORDER BY a.save_date DESC
+    """
+    
+    try:
+        with connections['mssql'].cursor() as cursor:
+            # 사업명 앞뒤에 %를 붙여서 부분이 일치하더라도 찾아오게 합니다.
+            search_param = f"%{project_name}%"
+            cursor.execute(mssql_query, [search_param])
+            
+            columns = [col[0] for col in cursor.description]
+            data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            
+            return JsonResponse({'status': 'success', 'data': data})
+            
+    except Exception as e:
+        import traceback
+        print(f"MSSQL 에러 상세:\n{traceback.format_exc()}")
+        return JsonResponse({'status': 'error', 'message': str(e)})

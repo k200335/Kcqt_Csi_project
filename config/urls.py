@@ -112,5 +112,9 @@ urlpatterns = [
     path('notice/', views.notice, name='notice'),
     path('register_client/', views.register_client, name='register_client'),
     path('get_project_detail/', views.get_project_detail, name='get_project_detail'),
+    # 1. 왼쪽 담당자 검색용 PATH
+    path('search_clients/', views.search_clients, name='search_clients'),
+    # 2. 리스트 클릭 시 MSSQL 상세 내역 호출용 PATH
+    path('get_project_full_details/', views.get_project_full_details, name='get_project_full_details'),
     
 ]

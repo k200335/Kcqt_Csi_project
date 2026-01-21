@@ -6,28 +6,41 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
 
 <style>
-    .consult-integrated-wrapper {
-        display: flex;
-        height: calc(100vh - 165px);
-        margin: -1rem;
-        padding: 15px;
-        background-color: #f4f6f9;
-        gap: 15px;
-        overflow: hidden;
-    }
+.consult-integrated-wrapper {
+    display: flex;
+    height: calc(100vh - 165px);
+    margin: -1rem;
+    padding: 15px;
+    background-color: #f4f6f9;
+    gap: 15px;
+    overflow: hidden;
+}
 
-    .dashboard-card { background: white; border-radius: 10px; border: 1px solid #dee2e6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; }
-    .sidebar-left { width: 320px; flex-shrink: 0; }
-    .main-consult-area { flex: 1; min-width: 0; }
-    .sidebar-right { width: 320px; flex-shrink: 0; }
-    .scrollable-content { flex: 1; overflow-y: auto; padding: 15px; }
+.dashboard-card { background: white; border-radius: 10px; border: 1px solid #dee2e6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; }
+.sidebar-left { width: 320px; flex-shrink: 0; }
+.main-consult-area { flex: 1; min-width: 0; }
+.sidebar-right { width: 320px; flex-shrink: 0; }
+.scrollable-content { flex: 1; overflow-y: auto; padding: 15px; }
 
-    /* 담당자 카드 스타일 */
-    .contact-card { padding: 12px; border-radius: 8px; background: #f8fafc; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
-    .contact-card:hover { background: #eef2ff; border-color: #0d6efd; }
-    .contact-card.active { background: #eef2ff; border-color: #0d6efd; box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1); }
+/* 담당자 카드 스타일 */
+.contact-card { padding: 12px; border-radius: 8px; background: #f8fafc; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+.contact-card:hover { background: #eef2ff; border-color: #0d6efd; }
+.contact-card.active { background: #eef2ff; border-color: #0d6efd; box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1); }
 
-    .btn-register-plus { padding: 0.25rem 0.5rem; line-height: 1; }
+.btn-register-plus { padding: 0.25rem 0.5rem; line-height: 1; }
+
+    /* 테이블 내부 스크롤바 디자인 */
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
 </style>
 
 <div class="consult-integrated-wrapper">
@@ -40,22 +53,18 @@
                 </button>
             </div>
             <div class="input-group input-group-sm">
-                <input type="text" class="form-control" placeholder="성함 또는 업체명...">
-                <button class="btn btn-primary"><i class="bi bi-search"></i></button>
+                <input type="text" id="search_keyword" class="form-control" placeholder="성함 또는 업체명..." 
+                    onkeyup="if(window.event.keyCode==13){search_clients()}">
+                
+                <button class="btn btn-primary" type="button" onclick="search_clients()">
+                    <i class="bi bi-search"></i>
+                </button>
             </div>
         </div>
-        <div class="scrollable-content">
-            <div class="contact-card active">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <span class="fw-bold">김철수 팀장</span>
-                        <div class="text-muted small">010-1234-5678</div>
-                    </div>
-                </div>
-                <div class="mt-2 small ps-2 border-start">
-                    <div class="py-1 text-primary fw-bold" style="cursor:pointer;" onclick="selectProject('QT26-001')">└ [GS건설] A아파트 신축공사</div>
-                    <div class="py-1 text-secondary" style="cursor:pointer;" onclick="selectProject('QT26-002')">└ [두산건설] B아파트 신축공사</div>
-                </div>
+        <div class="list-group list-group-flush border-bottom scrollarea" id="client_list">
+            <div class="p-4 text-center text-muted">
+                <i class="bi bi-search d-block mb-2" style="font-size: 2rem;"></i>
+                담당자 성함 또는 업체명을 검색해주세요.
             </div>
         </div>
     </aside>
@@ -69,11 +78,31 @@
                     <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> 전체저장</button>
                 </div>
             </div>
-            <div class="row g-2 small pt-2 border-top">
-                <div class="col-md-3"><b>의뢰번호:</b> <span id="ms_req_no">-</span></div>
-                <div class="col-md-3"><b>공급가액:</b> <span id="ms_supply">-</span></div>
-                <div class="col-md-3"><b>입금액:</b> <span id="ms_deposit">-</span></div>
-                <div class="col-md-3 text-end"><b>미수금:</b> <span class="text-danger fw-bold" id="ms_unpaid">0</span></div>
+            <div class="card shadow-sm mt-3">
+                <div class="card-header bg-white">
+                    <h6 class="m-0 font-weight-bold text-primary" id="selected_project_name">상세 내역 리스트</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6;">
+                        <table class="table table-bordered table-sm table-hover mb-0" style="min-width: 1200px; font-size: 0.75rem;">
+                            <thead class="table-dark sticky-top">
+                                <tr class="text-center">
+                                    <th>의뢰번호</th>
+                                    <th>QT번호</th>
+                                    <th>접수일</th>
+                                    <th>봉인명</th>
+                                    <th>공급가액</th>
+                                    <th>입금일</th>
+                                    <th>입금액</th>
+                                    <th>계산서발행업체</th>
+                                    <th>계산서발행일</th>
+                                </tr>
+                            </thead>
+                            <tbody id="project_detail_list">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -273,7 +302,78 @@
                     alert("서버 연결에 실패했습니다.");
                 });
             });
+        }        
+    });
+
+function search_clients() {
+    const keyword = $('#search_keyword').val();
+    
+    $.ajax({
+        url: '/search_clients/',
+        type: 'GET',
+        data: { 'keyword': keyword },
+        success: function(response) {
+            if (response.status === 'success') {
+                let html = '';
+                if (response.data.length > 0) {
+                    response.data.forEach(function(item) {
+                        // 클릭 시 상세 정보를 불러오도록 onclick 이벤트 연결
+                        html += `
+                        <div class="contact-card mb-2" style="cursor:pointer;" onclick="load_financial_report('${item.reg_project_name}')">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <span class="fw-bold">${item.reg_name}</span>
+                                    <div class="text-muted small">${item.reg_phone}</div>
+                                </div>
+                            </div>
+                            <div class="mt-2 small ps-2 border-start text-primary">
+                                └ [${item.reg_company}] ${item.reg_project_name}
+                            </div>
+                        </div>
+                    `;
+                });
+                } else {
+                    html = '<div class="p-3 text-center">검색 결과가 없습니다.</div>';
+                }
+                // 왼쪽 리스트 영역의 ID가 'client_list'라고 가정
+                $('#client_list').html(html);
+            }
         }
     });
+}
+
+function load_financial_report(projectName) {
+    $('#selected_project_name').text(projectName); // 상단 제목 업데이트
+    
+    $.ajax({
+        url: '/get_project_full_details/',
+        type: 'GET',
+        data: { 'project_name': projectName },
+        success: function(response) {
+            if (response.status === 'success') {
+                let html = '';
+                if (response.data.length > 0) {
+                    response.data.forEach(function(row) {
+                        html += `
+                            <tr>
+                                <td>${row.request_code || '-'}</td>
+                                <td>${row.receipt_code || '-'}</td>
+                                <td>${row.save_date || '-'}</td>
+                                <td>${row.specimen || '-'}</td>
+                                <td class="text-end fw-bold">${Number(row.supply_value).toLocaleString()}</td>
+                                <td>${row.deposit_day || '-'}</td>
+                                <td class="text-end text-success">${Number(row.deposit).toLocaleString()}</td>
+                                <td>${row.company || '-'}</td>
+                                <td>${row.issue_date || '-'}</td>
+                            </tr>`;
+                    });
+                } else {
+                    html = '<tr><td colspan="9" class="text-center py-4">해당 현장의 데이터를 찾을 수 없습니다.</td></tr>';
+                }
+                $('#project_detail_list').html(html);
+            }
+        }
+    });
+}
 </script>
 {% endblock %}
