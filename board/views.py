@@ -2649,23 +2649,46 @@ def register_client(request):
             return JsonResponse({"status": "error", "message": str(e)})
         
         
-def search_clients(request):
-    keyword = request.GET.get('keyword', '')
+# def search_clients(request):
+#     keyword = request.GET.get('keyword', '')
     
+#     try:
+#         with connections['default'].cursor() as cursor:
+#             # 이름(reg_name)으로 검색
+#             sql = "SELECT reg_name, reg_phone, reg_company, reg_project_name FROM client_projects WHERE reg_name LIKE %s"
+#             cursor.execute(sql, [f"%{keyword}%"])
+            
+#             # 결과 가공
+#             columns = [col[0] for col in cursor.description]
+#             data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            
+#             return JsonResponse({'status': 'success', 'data': data})
+            
+#     except Exception as e:
+#         return JsonResponse({'status': 'error', 'message': str(e)})
+    
+def search_clients(request):
+    keyword = request.GET.get('keyword', '').strip()
     try:
         with connections['default'].cursor() as cursor:
-            # 이름(reg_name)으로 검색
-            sql = "SELECT reg_name, reg_phone, reg_company, reg_project_name FROM client_projects WHERE reg_name LIKE %s"
-            cursor.execute(sql, [f"%{keyword}%"])
+            # reg_email 컬럼을 추가로 조회합니다.
+            sql = """
+                SELECT id, reg_name, reg_phone, reg_email, reg_company, reg_project_name 
+                FROM client_projects 
+                WHERE reg_name LIKE %s 
+                   OR reg_company LIKE %s 
+                   OR reg_project_name LIKE %s
+                ORDER BY created_at DESC
+            """
+            search_param = f"%{keyword}%"
+            cursor.execute(sql, [search_param, search_param, search_param])
             
-            # 결과 가공
             columns = [col[0] for col in cursor.description]
             data = [dict(zip(columns, row)) for row in cursor.fetchall()]
-            
             return JsonResponse({'status': 'success', 'data': data})
-            
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
+
     
 def get_project_full_details(request):
     project_name = request.GET.get('project_name', '').strip()
@@ -2707,3 +2730,223 @@ def get_project_full_details(request):
         import traceback
         print(f"MSSQL 에러 상세:\n{traceback.format_exc()}")
         return JsonResponse({'status': 'error', 'message': str(e)})
+    
+# ---------------------------memo 저장-----------------------str
+@csrf_exempt # 실제 서비스에선 CSRF 토큰을 사용하는 것이 안전합니다
+def save_consulting_memo(request):
+    if request.method == 'POST':
+        client_id = request.POST.get('client_id')
+        project_name = request.POST.get('project_name')
+        category = request.POST.get('category')
+        content = request.POST.get('content')
+        
+        try:
+            with connections['default'].cursor() as cursor:
+                # 방금 만든 consulting_memos 테이블에 데이터 삽입
+                sql = """
+                    INSERT INTO consulting_memos (client_id, project_name, category, content)
+                    VALUES (%s, %s, %s, %s)
+                """
+                cursor.execute(sql, [client_id, project_name, category, content])
+            
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            print(f"메모 저장 에러: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': str(e)})
+            
+    return JsonResponse({'status': 'error', 'message': '잘못된 요청 방식입니다.'})
+
+
+# ------------------------------과거상담 기록 출력--------------str
+
+# board/views.py 에 추가
+
+def get_consulting_history(request):
+    client_id = request.GET.get('client_id')
+    
+    try:
+        with connections['default'].cursor() as cursor:
+            # 해당 담당자의 메모를 최신순으로 가져오는 쿼리
+            sql = """
+                SELECT category, content, 
+                       DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:%%i') as date
+                FROM consulting_memos 
+                WHERE client_id = %s 
+                ORDER BY created_at DESC
+            """
+            cursor.execute(sql, [client_id])
+            
+            columns = [col[0] for col in cursor.description]
+            data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            
+            return JsonResponse({'status': 'success', 'data': data})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+    
+    # --------------------------예약관리시스템----------------str
+
+def save_consulting_memo(request):
+    if request.method == 'POST':
+        client_id = request.POST.get('client_id')
+        project_name = request.POST.get('project_name')
+        category = request.POST.get('category')
+        content = request.POST.get('content')
+        
+        try:
+            with connections['default'].cursor() as cursor:
+                # 1. 히스토리 기록 (MySQL)
+                sql_memo = "INSERT INTO consulting_memos (client_id, project_name, category, content) VALUES (%s, %s, %s, %s)"
+                cursor.execute(sql_memo, [client_id, project_name, category, content])
+                
+                # 2. '예약' 버튼인 경우 업무 예약 테이블에도 저장
+                if '예약' in category:
+                    # 시작일은 오늘(CURDATE())로 자동 설정
+                    sql_task = """
+                        INSERT INTO task_management (client_id, project_name, category, content, start_date)
+                        VALUES (%s, %s, %s, %s, CURDATE())
+                    """
+                    cursor.execute(sql_task, [client_id, project_name, category, content])
+            
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+        
+
+# -----------------------------우츨리스트에 뿌려줄 데이터 전달함수-----------
+
+# board/views.py
+def get_active_tasks(request):
+    try:
+        with connections['default'].cursor() as cursor:
+            # WHERE 절을 수정하여 완료된 건도 포함합니다.
+            # 최근 등록 순으로 가져오되, 완료 여부(is_completed)를 함께 가져옵니다.
+            sql = """
+                SELECT id, category, project_name, content, 
+                       DATE_FORMAT(start_date, '%Y-%m-%d') as start_date,
+                       is_completed
+                FROM task_management 
+                ORDER BY is_completed ASC, created_at DESC 
+                LIMIT 20
+            """
+            cursor.execute(sql)
+            columns = [col[0] for col in cursor.description]
+            tasks = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return JsonResponse({'status': 'success', 'data': tasks})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+
+
+
+
+
+@csrf_exempt # 테스트를 위해 잠시 추가 (성공하면 나중에 빼셔도 됩니다)
+def complete_task(request):
+    if request.method == 'POST':
+        task_id = request.POST.get('task_id')
+        try:
+            with connections['default'].cursor() as cursor:
+                # 해당 ID의 is_completed를 1(완료)로 업데이트
+                sql = "UPDATE task_management SET is_completed = 1 WHERE id = %s"
+                cursor.execute(sql, [task_id])
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+        
+
+
+# ---------------캘린더 작업용-----------------
+
+# views.py
+def get_calendar_events(request):
+    try:
+        with connections['default'].cursor() as cursor:
+            # 완료되지 않은 업무와 완료된 업무 모두 캘린더에 표시
+            sql = """
+                SELECT 
+                    project_name as title, 
+                    start_date as start,
+                    category,
+                    is_completed
+                FROM task_management
+            """
+            cursor.execute(sql)
+            columns = [col[0] for col in cursor.description]
+            events = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            
+            # 완료된 업무는 제목 앞에 [완료]를 붙이거나 색상을 다르게 설정
+            for event in events:
+                if event['is_completed'] == 1:
+                    event['title'] = "[완료] " + event['title']
+                    event['color'] = '#adb5bd' # 회색
+                else:
+                    event['color'] = '#28a745' if event['category'] == '시험예약' else '#007bff'
+                    
+        return JsonResponse(events, safe=False)
+    except Exception as e:
+        return JsonResponse([], safe=False)
+    
+    # ------------------------폴더생성관리------------str
+    
+            
+def manage_folder(request):
+    # GET 또는 POST 방식 모두에서 데이터를 가져옵니다.
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        client_id_raw = request.POST.get('client_id', 'unknown')
+        name = request.POST.get('name', '이름없음')
+        phone = request.POST.get('phone', '000-0000-0000').replace('-', '')
+        project_name = request.POST.get('project_name', '사업명미정')
+    else:
+        action = request.GET.get('action')
+        client_id_raw = request.GET.get('client_id', 'unknown')
+        name = request.GET.get('name', '이름없음')
+        phone = request.GET.get('phone', '000-0000-0000').replace('-', '')
+        project_name = request.GET.get('project_name', '사업명미정')
+
+    # --- [수정] ID 가공 로직: 3자리 숫자로 변환 (예: 5 -> 505) ---
+    formatted_id = client_id_raw
+    if client_id_raw.isdigit():
+        cid = int(client_id_raw)
+        if cid < 100:
+            # 100 미만인 경우 500을 더해 500번대로 진입 (5 -> 505)
+            formatted_id = str(cid + 500)
+        else:
+            # 100 이상인 경우 3자리 유지 (예: 101 -> 101)
+            formatted_id = str(cid).zfill(3)
+    else:
+        # 숫자가 아닌 경우 최소 3자리 빈칸 채우기
+        formatted_id = client_id_raw.zfill(3)
+
+    # 1. 사용자님이 지정하신 기본 경로
+    base_root = r"F:\20160116_내자료\007_업무_영업팀\010_일반상담 견적요청 자료보관"
+    
+    # 2. 폴더명 규칙: 새 ID_이름_전화번호 (formatted_id 사용)
+    client_folder_name = f"{formatted_id}_{name}_{phone}"
+    
+    # 3. 전체 경로 생성 (기본경로\담당자폴더\사업명)
+    target_path = os.path.join(base_root, client_folder_name, project_name)
+
+    # --- 이하 생성 및 열기 로직 동일 ---
+    if action == 'create':
+        try:
+            if not os.path.exists(target_path):
+                os.makedirs(target_path)
+                return JsonResponse({'status': 'success', 'message': f'폴더[{formatted_id}]가 생성되었습니다.'})
+            else:
+                return JsonResponse({'status': 'exists', 'message': '이미 폴더가 존재합니다.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'생성 실패: {str(e)}'})
+
+    elif action == 'open':
+        try:
+            if os.path.exists(target_path):
+                os.startfile(target_path)
+                return JsonResponse({'status': 'success'})
+            else:
+                return JsonResponse({'status': 'error', 'message': '폴더를 찾을 수 없습니다.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'열기 실패: {str(e)}'})
+
+    return JsonResponse({'status': 'error', 'message': '잘못된 요청입니다.'})         

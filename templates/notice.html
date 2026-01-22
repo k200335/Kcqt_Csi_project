@@ -4,8 +4,11 @@
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <style>
+/* --- 기본 레이아웃 구성 --- */
+/* --- 기본 레이아웃 구성 --- */
 .consult-integrated-wrapper {
     display: flex;
     height: calc(100vh - 165px);
@@ -13,130 +16,178 @@
     padding: 15px;
     background-color: #f4f6f9;
     gap: 15px;
-    overflow: hidden;
+    overflow: hidden; 
 }
 
-.dashboard-card { background: white; border-radius: 10px; border: 1px solid #dee2e6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; }
-.sidebar-left { width: 320px; flex-shrink: 0; }
-.main-consult-area { flex: 1; min-width: 0; }
+/* 1. 왼쪽 사이드바: 전체 화면 높이에 딱 맞게 고정 */
+.sidebar-left {
+    width: 320px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    height: 100%; /* 부모 높이를 가득 채움 */
+    overflow: hidden; /* 사이드바 밖으로 삐져나오지 않게 함 */
+}
+
+/* 2. 담당자 검색 카드: 상단에 고정 */
+.sidebar-left .dashboard-card:first-child {
+    height: 50%; /* 검색 영역이 화면의 딱 절반을 쓰도록 설정 (조절 가능) */
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0; /* 캘린더에 의해 줄어들지 않음 */
+}
+
+/* 3. 검색 데이터 리스트: 카드 내부에서 꽉 차게 늘어남 (핵심) */
+#client_list {
+    flex: 1;               /* 카드 내부의 남은 공간을 무조건 꽉 채움 */
+    overflow-y: auto !important; /* 데이터 많으면 여기서만 스크롤 */
+    display: block;        /* 데이터 블록이 사라지지 않게 보장 */
+    min-height: 0;
+    background: #fff;
+}
+
+/* 4. 캘린더 카드: 검색창 바로 아래 남은 공간 전체 사용 */
+.calendar-container-card {
+    flex: 1;               /* 하단 남은 공간을 100% 다 사용 */
+    min-height: 350px;     /* 캘린더가 너무 작아지지 않게 최소 높이 보장 */
+    display: flex;
+    flex-direction: column;
+    padding: 10px !important;
+}
+
+/* 캘린더 내부 실제 영역 */
+#calendar {
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+}
+
+/* 캘린더 폰트 및 버튼 크기 축소 (이미지처럼 좁은 곳에 최적화) */
+.fc .fc-toolbar-title { font-size: 0.85rem !important; }
+.fc .fc-button { padding: 1px 4px !important; font-size: 0.65rem !important; }
+.fc-daygrid-day-number { font-size: 0.7rem; }
+.fc .fc-daygrid-day-frame { min-height: 35px !important; }
+
+/* --- 중앙 및 오른쪽 영역 유지 --- */
+.main-consult-area { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 15px; }
 .sidebar-right { width: 320px; flex-shrink: 0; }
-.scrollable-content { flex: 1; overflow-y: auto; padding: 15px; }
+.dashboard-card { background: white; border-radius: 10px; border: 1px solid #dee2e6; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
 
 /* 담당자 카드 스타일 */
-.contact-card { padding: 12px; border-radius: 8px; background: #f8fafc; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+.contact-card { padding: 12px; border-radius: 8px; background: #f8fafc; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; }
 .contact-card:hover { background: #eef2ff; border-color: #0d6efd; }
-.contact-card.active { background: #eef2ff; border-color: #0d6efd; box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.1); }
-
-.btn-register-plus { padding: 0.25rem 0.5rem; line-height: 1; }
-
-    /* 테이블 내부 스크롤바 디자인 */
-.table-responsive::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-.table-responsive::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 4px;
-}
-.table-responsive::-webkit-scrollbar-thumb:hover {
-    background: #999;
-}
+.contact-card.active { background: #eef2ff; border-color: #0d6efd; }
 </style>
 
 <div class="consult-integrated-wrapper">
-    <aside class="sidebar-left dashboard-card">
-        <div class="p-3 border-bottom bg-light">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="fw-bold mb-0"><i class="bi bi-person-lines-fill me-2"></i>담당자 검색</h6>
-                <button type="button" class="btn btn-success btn-sm btn-register-plus" onclick="openRegisterModal()" title="신규 담당자/프로젝트 등록">
-                    <i class="bi bi-person-plus-fill"></i>
-                </button>
+    <aside class="sidebar-left">
+        <div class="dashboard-card">
+            <div class="p-3 border-bottom bg-light">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0 small"><i class="bi bi-person-lines-fill me-2"></i>담당자 검색</h6>
+                    <button type="button" class="btn btn-success btn-sm btn-register-plus" onclick="openRegisterModal()">
+                        <i class="bi bi-person-plus-fill"></i>
+                    </button>
+                </div>
+                <div class="input-group input-group-sm">
+                    <input type="text" id="search_keyword" class="form-control" placeholder="성함 또는 업체명..." 
+                        onkeyup="if(window.event.keyCode==13){search_clients()}">
+                    <button class="btn btn-primary" type="button" onclick="search_clients()">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
             </div>
-            <div class="input-group input-group-sm">
-                <input type="text" id="search_keyword" class="form-control" placeholder="성함 또는 업체명..." 
-                    onkeyup="if(window.event.keyCode==13){search_clients()}">
-                
-                <button class="btn btn-primary" type="button" onclick="search_clients()">
-                    <i class="bi bi-search"></i>
-                </button>
+            <div class="list-group list-group-flush scrollarea" id="client_list">
+                <div class="p-4 text-center text-muted small">
+                    <i class="bi bi-search d-block mb-2" style="font-size: 2rem;"></i>
+                    검색을 시작해주세요.
+                </div>
             </div>
         </div>
-        <div class="list-group list-group-flush border-bottom scrollarea" id="client_list">
-            <div class="p-4 text-center text-muted">
-                <i class="bi bi-search d-block mb-2" style="font-size: 2rem;"></i>
-                담당자 성함 또는 업체명을 검색해주세요.
-            </div>
+
+        <div class="dashboard-card calendar-container-card">
+            <div id="calendar"></div>
         </div>
     </aside>
 
     <main class="main-consult-area d-flex flex-column gap-3">
-        <div class="dashboard-card p-3" style="height: auto;">
+        <div class="dashboard-card p-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 class="fw-bold mb-0 text-truncate" id="display_project_name">프로젝트를 선택해주세요</h5>
+                <div>
+                    <div class="mb-1">
+                        <span id="info_name" class="fw-bold text-dark" style="font-size: 1rem;"></span>
+                        <span id="info_phone" class="text-muted ms-2" style="font-size: 0.85rem;"></span>
+                    </div>
+
+                    <h5 id="current_project_title" class="text-primary fw-bold mb-0">
+                        프로젝트를 선택해주세요
+                    </h5>
+                </div>
+
                 <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-dark"><i class="bi bi-folder2-open"></i> 폴더열기</button>
-                    <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> 전체저장</button>
+                    <button class="btn btn-sm btn-primary" onclick="manageFolder('create')">
+                        <i class="bi bi-folder-plus"></i> 폴더생성
+                    </button>
+                    
+                    <button class="btn btn-sm btn-outline-dark" onclick="manageFolder('open')">
+                        <i class="bi bi-folder2-open"></i> 폴더열기
+                    </button>                    
                 </div>
             </div>
             <div class="card shadow-sm mt-3">
-                <div class="card-header bg-white">
-                    <h6 class="m-0 font-weight-bold text-primary" id="selected_project_name">상세 내역 리스트</h6>
+                <div class="card-header bg-white py-2">
+                    <h6 class="m-0 font-weight-bold text-primary small" id="selected_project_name">상세 내역 리스트</h6>
                 </div>
                 <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6;">
-                        <table class="table table-bordered table-sm table-hover mb-0" style="min-width: 1200px; font-size: 0.75rem;">
+                    <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                        <table class="table table-bordered table-sm table-hover mb-0" style="min-width: 1000px; font-size: 0.7rem;">
                             <thead class="table-dark sticky-top">
                                 <tr class="text-center">
-                                    <th>의뢰번호</th>
-                                    <th>QT번호</th>
-                                    <th>접수일</th>
-                                    <th>봉인명</th>
-                                    <th>공급가액</th>
-                                    <th>입금일</th>
-                                    <th>입금액</th>
-                                    <th>계산서발행업체</th>
-                                    <th>계산서발행일</th>
+                                    <th>의뢰번호</th><th>QT번호</th><th>접수일</th><th>봉인명</th>
+                                    <th>공급가액</th><th>입금일</th><th>입금액</th><th>발행업체</th><th>발행일</th>
                                 </tr>
                             </thead>
-                            <tbody id="project_detail_list">
-                                </tbody>
+                            <tbody id="project_detail_list"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="dashboard-card flex-grow-1 overflow-hidden">
-            <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
-                <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-chat-left-text-fill me-2"></i>실시간 상담 및 업무 메모</h6>
+        <div class="dashboard-card flex-grow-1 overflow-hidden d-flex flex-column">
+            <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
+                <h6 class="fw-bold mb-0 text-primary small"><i class="bi bi-chat-left-text-fill me-2"></i>상담 및 업무 메모</h6>
                 <div class="d-flex gap-1">
-                    <button class="btn btn-xs btn-info text-white">견적예약</button>
-                    <button class="btn btn-xs btn-warning text-white">세발예약</button>
-                    <button class="btn btn-xs btn-success">시험예약</button>
+                    <button type="button" class="btn btn-info btn-xs memo-save-btn" data-category="견적예약">견적</button>
+                    <button type="button" class="btn btn-warning btn-xs memo-save-btn" data-category="세발예약">세발</button>
+                    <button type="button" class="btn btn-success btn-xs memo-save-btn" data-category="시험예약">시험</button>
+                    <button type="button" class="btn btn-secondary btn-xs memo-save-btn" data-category="일반예약">일반</button>
+                    <button type="button" class="btn btn-dark btn-xs memo-save-btn" data-category="입찰예약">입찰</button>
                 </div>
             </div>
-            <div class="p-3 border-bottom bg-light">
-                <textarea class="form-control form-control-sm" rows="3" placeholder="통화 내용을 기록하세요..."></textarea>
+            <div class="p-2 border-bottom bg-light">
+                <textarea id="memo_content" class="form-control form-control-sm" rows="3" placeholder="내용을 기록하세요..."></textarea>
             </div>
-            <div class="scrollable-content">
-                <h6 class="fw-bold small mb-3 text-muted">과거 상담 히스토리</h6>
+            <div class="p-3 flex-grow-1 overflow-auto">
+                <h6 class="fw-bold extra-small mb-2 text-muted">과거 상담 히스토리</h6>
+                <div id="memo_history_area"></div>
             </div>
         </div>
     </main>
 
-    <aside class="sidebar-right d-flex flex-column gap-3">
-        <div class="dashboard-card flex-grow-1 overflow-hidden">
-            <div class="p-3 border-bottom bg-danger bg-opacity-10">
-                <h6 class="fw-bold mb-0 text-danger small"><i class="bi bi-clock-history me-2"></i>업무 예약 (D-Day 관리)</h6>
+    <aside class="sidebar-right">
+        <div class="dashboard-card p-3 h-100 d-flex flex-column" style="background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;">
+            <h6 class="fw-bold small mb-3 text-danger border-bottom pb-2">
+                <i class="bi bi-clock-history"></i> 업무 예약 (D-Day)
+            </h6>
+            <div id="task_list_area" class="flex-grow-1 overflow-auto">
+                <div class="text-center text-muted small p-3">진행 중인 업무가 없습니다.</div>
             </div>
-            <div class="scrollable-content"></div>
-        </div>
-        <div class="dashboard-card p-2" style="height: 320px;">
-            <div id="mini-calendar"></div>
         </div>
     </aside>
 </div>
-
 <div class="modal fade" id="registerModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -146,7 +197,7 @@
             </div>
             <div class="modal-body p-4">
                 <form id="clientRegForm">
-                    <div class="row g-3 mb-3">
+                    {% csrf_token %} <div class="row g-3 mb-3">
                         <div class="col-6">
                             <label class="form-label small fw-bold">담당자 성함</label>
                             <input type="text" class="form-control form-control-sm" name="reg_name" required placeholder="예: 김철수">
@@ -165,16 +216,16 @@
                     <div class="p-3 bg-light rounded-3 mb-3 border">
                         <h6 class="fw-bold small mb-3 text-primary"><i class="bi bi-link-45deg me-1"></i>MSSQL 프로젝트 연결</h6>
                         <div class="mb-3">
-                            <label for="reg_company" class="form-label">시공사/발주처</label>
-                            <input type="text" id="reg_company" name="reg_company" class="form-control" placeholder="사업명 확인 시 자동 입력됩니다">
+                            <label for="reg_company" class="form-label small fw-bold">시공사/발주처</label>
+                            <input type="text" id="reg_company" name="reg_company" class="form-control form-control-sm" placeholder="사업명 확인 시 자동 입력됩니다">
                         </div>
                         <div class="mb-0">
-                            <label for="reg_project_name" class="form-label">사업명</label>
+                            <label for="reg_project_name" class="form-label small fw-bold">사업명</label>
                             <div class="input-group input-group-sm">
                                 <input type="text" id="reg_project_name" name="reg_project_name" class="form-control" placeholder="사업명을 입력하세요">
                                 <button type="button" class="btn btn-secondary" onclick="checkProject()">확인</button>
                             </div>
-                        </div>
+                            <div id="check_result" class="mt-1"></div> </div>
                     </div>
                     <button type="submit" class="btn btn-success btn-sm w-100 fw-bold py-2">데이터베이스에 저장</button>
                 </form>
@@ -185,15 +236,22 @@
 
 
 <script>
-    // 1. 모달 열기 함수
+var calendar;
+let currentClientId = null; 
+
+// 1. 모달 열기 함수 (중복 생성 방지 로직 추가)
     window.openRegisterModal = function() {
         const modalEl = document.getElementById('registerModal');
         if (modalEl) {
             if (typeof bootstrap !== 'undefined') {
-                const myModal = new bootstrap.Modal(modalEl);
+                // 기존에 생성된 모달이 있으면 그것을 쓰고, 없으면 새로 만듭니다.
+                let myModal = bootstrap.Modal.getInstance(modalEl);
+                if (!myModal) {
+                    myModal = new bootstrap.Modal(modalEl);
+                }
                 myModal.show();
             } else {
-                alert("Bootstrap 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.");
+                alert("Bootstrap 로딩 중...");
             }
         }
     };
@@ -274,6 +332,9 @@
                 headerToolbar: { left: 'prev,next', center: 'title', right: '' }
             });
             calendar.render();
+            setTimeout(() => { 
+                calendar.updateSize(); 
+            }, 200);
         }
 
         // 폼 제출 이벤트 (통합 버전)
@@ -312,39 +373,55 @@ function search_clients() {
         url: '/search_clients/',
         type: 'GET',
         data: { 'keyword': keyword },
+        // search_clients 함수의 success 콜백 부분
         success: function(response) {
             if (response.status === 'success') {
                 let html = '';
                 if (response.data.length > 0) {
                     response.data.forEach(function(item) {
-                        // 클릭 시 상세 정보를 불러오도록 onclick 이벤트 연결
+                        
+                        // 1. 변수를 먼저 정의합니다 (이 위치가 중요합니다!)
+                        // 만약 DB 컬럼명이 'reg_email'이 아니라면 'item.email' 등으로 맞춰주세요.
+                        let emailStr = item.reg_email ? ` | ${item.reg_email}` : '';
+                        
+                        // 2. 그 다음 html 변수에 합칩니다
                         html += `
-                        <div class="contact-card mb-2" style="cursor:pointer;" onclick="load_financial_report('${item.reg_project_name}')">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <span class="fw-bold">${item.reg_name}</span>
-                                    <div class="text-muted small">${item.reg_phone}</div>
+                            <div class="contact-card mb-2" style="cursor:pointer;" 
+                                onclick="load_financial_report('${item.reg_project_name}', '${item.id}', '${item.reg_name}', '${item.reg_phone}')">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <span class="fw-bold" style="font-size: 1.1rem;">${item.reg_name}</span>
+                                        <div class="text-muted small">
+                                            <i class="bi bi-telephone"></i> ${item.reg_phone} 
+                                            <span class="text-primary">${emailStr}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-2 small ps-2 border-start text-primary">
+                                    └ [${item.reg_company}] ${item.reg_project_name}
                                 </div>
                             </div>
-                            <div class="mt-2 small ps-2 border-start text-primary">
-                                └ [${item.reg_company}] ${item.reg_project_name}
-                            </div>
-                        </div>
-                    `;
-                });
+                        `;
+                    });
                 } else {
-                    html = '<div class="p-3 text-center">검색 결과가 없습니다.</div>';
+                    html = '<div class="p-3 text-center text-muted">검색 결과가 없습니다.</div>';
                 }
-                // 왼쪽 리스트 영역의 ID가 'client_list'라고 가정
                 $('#client_list').html(html);
             }
         }
     });
 }
 
-function load_financial_report(projectName) {
-    $('#selected_project_name').text(projectName); // 상단 제목 업데이트
-    
+
+
+function load_financial_report(projectName, clientId, name, phone) {
+    currentClientId = clientId; // 전역변수에 ID 저장
+    $('#info_name').text(name); 
+    $('#info_phone').text(phone);
+    $('#selected_project_name').text(projectName); // 상단 제목 업데이트 (사업명)
+    $('#current_project_title').text(projectName); // 이 줄을 추가하세요!
+
+    // --- 1. MSSQL에서 정산/현장 데이터 불러오기 ---
     $.ajax({
         url: '/get_project_full_details/',
         type: 'GET',
@@ -374,6 +451,255 @@ function load_financial_report(projectName) {
             }
         }
     });
+
+
+        $.ajax({
+        url: '/get_consulting_history/',
+        type: 'GET',
+        data: { 'client_id': clientId },
+        success: function(response) {
+            if (response.status === 'success') {
+                let html = '';
+                if (response.data.length > 0) {
+                    response.data.forEach(function(memo) {
+                        // 카테고리별 색상 로직 수정 (isDone 에러 방지)
+                        let badgeClass = 'bg-secondary'; 
+                        if(memo.category === '시험예약') badgeClass = 'bg-success';
+                        else if(memo.category === '세발예약') badgeClass = 'bg-warning text-dark';
+                        else if(memo.category === '견적예약') badgeClass = 'bg-info text-dark';
+                        else if(memo.category === '입찰예약') badgeClass = 'bg-dark';
+
+                        html += `
+                            <div class="card mb-2 shadow-sm">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="badge ${badgeClass}">${memo.category}</span>
+                                        <small class="text-muted">${memo.date}</small>
+                                    </div>
+                                    <p class="card-text small mb-0">${memo.content.replace(/\n/g, '<br>')}</p>
+                                </div>
+                            </div>`;
+                    });
+                } else {
+                    html = '<div class="text-center text-muted small p-3">과거 상담 내역이 없습니다.</div>';
+                }
+                // 이 ID가 HTML의 "과거 상담 히스토리" 위치와 일치해야 합니다!
+                $('#memo_history_area').html(html); 
+            }
+        }
+    });
 }
+
+// 메모 저장 함수
+// 3. 버튼 클릭 이벤트 (반드시 $(document).ready 안에 넣거나 스크립트 하단에 배치)
+$(document).on('click', '.memo-save-btn', function() {
+    const category = $(this).data('category');
+    const content = $('#memo_content').val();
+    const projectName = $('#selected_project_name').text();
+
+    if (!currentClientId) {
+        alert("먼저 왼쪽 리스트에서 담당자를 선택해 주세요.");
+        return;
+    }
+
+    $.ajax({
+        url: '/save_consulting_memo/',
+        type: 'POST',
+        data: {
+            'client_id': currentClientId,
+            'project_name': projectName,
+            'category': category,
+            'content': content,
+            'csrfmiddlewaretoken': '{{ csrf_token }}'
+        },
+        success: function(response) {
+            if (response.status === 'success') {
+                alert(category + " 저장 및 예약 등록 완료!");
+                $('#memo_content').val(''); // 입력창 비우기
+
+                // 모든 UI 구성요소 동시 갱신
+                load_financial_report(projectName, currentClientId); // 1. 히스토리 & 캘린더 리프레시 포함
+                
+                if (typeof load_active_tasks === 'function') {
+                    load_active_tasks(); // 2. 우측 업무 리스트 갱신
+                }
+
+                if (typeof calendar !== 'undefined' && calendar !== null) {
+                    calendar.refetchEvents(); // 3. 캘린더 이벤트 갱신 (혹시 모르니 한 번 더 호출)
+                }
+            } else {
+                alert("저장 실패: " + response.message);
+            }
+        },
+        error: function(xhr) {
+            alert("서버 통신 에러가 발생했습니다.");
+        }
+    });
+});
+
+// 페이지 로드 완료 시 실행
+
+$(document).ready(function() {
+    // 1. 우측 업무 예약 리스트 처음 불러오기
+    if (typeof load_active_tasks === 'function') {
+        load_active_tasks();
+    }
+
+    // 2. 하단 캘린더 초기화 로직
+    var calendarEl = document.getElementById('calendar'); // HTML의 ID와 일치해야 함
+    if (calendarEl) {
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'ko',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: ''
+            },
+            height: '100%',
+            events: '/get_calendar_events/', // 서버에서 데이터를 가져올 주소
+            eventDidMount: function(info) {
+                // 마우스를 올리면 상세 내용이 보이게 툴팁 추가 (선택사항)
+                info.el.title = info.event.title;
+            }
+        });
+        calendar.render();
+    } else {
+        console.error("ID가 'calendar'인 엘리먼트를 찾지 못했습니다. HTML 코드를 확인해주세요.");
+    }
+});
+
+
+function load_active_tasks() {
+    $.ajax({
+        url: '/get_active_tasks/',
+        type: 'GET',
+        success: function(response) {
+            if (response.status === 'success') {
+                let html = '';
+                if (response.data && response.data.length > 0) {
+                    response.data.forEach(function(task) {
+                        // 완료 여부에 따른 스타일 설정
+                        const isDone = task.is_completed === 1;
+                        const textStyle = isDone ? 'text-decoration: line-through; color: #adb5bd;' : '';
+                        const cardOpacity = isDone ? 'opacity: 0.7; background-color: #f1f3f5;' : 'background-color: #f8f9fa;';
+                        // const badgeClass = isDone ? 'bg-secondary' : (task.category === '시험예약' ? 'bg-success' : 'bg-primary');
+                        // --- 배지 색상 통일 로직 시작 ---
+                        let badgeClass = 'bg-primary';
+                        if (isDone) {
+                            badgeClass = 'bg-secondary';
+                        } else {
+                            if (task.category === '시험예약') badgeClass = 'bg-success';
+                            else if (task.category === '세발예약') badgeClass = 'bg-warning text-dark';
+                            else if (task.category === '견적예약') badgeClass = 'bg-info text-dark';
+                            else if (task.category === '입찰예약') badgeClass = 'bg-dark';
+                            else if (task.category === '일반예약') badgeClass = 'bg-secondary';
+                        }
+                        // --- 배지 색상 통일 로직 끝 ---
+                        html += `
+                            <div class="card mb-2 shadow-sm border-0" style="${cardOpacity}">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="badge ${badgeClass}" style="font-size: 0.65rem;">${task.category}</span>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <small class="text-muted" style="font-size: 0.65rem;">${task.start_date || ''}</small>
+                                            ${!isDone ? `
+                                                <button class="btn btn-sm btn-light p-0 px-1" style="font-size: 0.7rem; border: 1px solid #ddd;" 
+                                                        onclick="completeTask(${task.id})">
+                                                    <i class="bi bi-check-lg text-success"></i>
+                                                </button>` : '<i class="bi bi-check-all text-muted"></i>'}
+                                        </div>
+                                    </div>
+                                    <div class="fw-bold small text-truncate" style="${textStyle}">${task.project_name}</div>
+                                    <div class="mt-1" style="font-size: 0.75rem; line-height: 1.2; ${textStyle}">
+                                        ${task.content}
+                                    </div>
+                                </div>
+                            </div>`;
+                    });
+                } else {
+                    html = '<div class="text-center text-muted small p-3">등록된 업무가 없습니다.</div>';
+                }
+                $('#task_list_area').html(html);
+            }
+        }
+    });
+}
+
+function completeTask(taskId) {
+    if (!confirm("업무를 완료하시겠습니까?")) return;
+
+    $.ajax({
+        url: '/complete_task/',
+        type: 'POST',
+        data: {
+            'task_id': taskId,
+            'csrfmiddlewaretoken': '{{ csrf_token }}'
+        },
+        success: function(response) {
+            if (response.status === 'success') {
+                load_active_tasks(); // 성공하면 리스트 갱신
+            }
+        }
+    });
+}
+
+
+// ------------------------폴더생성관리---------------------str
+function manageFolder(actionType) {
+    // 화면에 써진 글자를 직접 읽어옵니다.
+    const name = $('#info_name').text().trim();
+    const phone = $('#info_phone').text().trim();
+    const projectName = $('#current_project_title').text().trim();
+
+    const folderData = {
+        'client_id': currentClientId, 
+        'name': name,
+        'phone': phone,
+        'project_name': projectName,
+        'action': actionType,
+        'csrfmiddlewaretoken': '{{ csrf_token }}'
+    };
+
+    console.log("보내는 데이터:", folderData); // 디버깅용
+
+    // 방어 코드: 정보가 하나라도 없으면 중단
+    if (!name || name === "" || projectName === "프로젝트를 선택해주세요") {
+        alert("담당자 정보 또는 프로젝트가 선택되지 않았습니다.");
+        return;
+    }
+
+    if (actionType === 'create') {
+        if (!confirm(`[${projectName}]\n폴더를 생성하시겠습니까?`)) return;
+    }
+
+    $.ajax({
+        url: '/manage_folder/', 
+        type: 'POST',
+        data: folderData,
+        success: function(res) {
+            if (res.status === 'success') {
+                if (actionType === 'create') alert(res.message);
+                // actionType이 'open'인 경우 서버에서 os.startfile을 실행하므로 
+                // 별도의 alert 없이 창이 뜨면 성공입니다.
+            } else {
+                alert(res.message);
+            }
+        },
+        error: function() {
+            alert("서버 통신 중 오류가 발생했습니다.");
+        }
+    });
+}
+
+
+
+
 </script>
+
+
+
+
+
+
 {% endblock %}

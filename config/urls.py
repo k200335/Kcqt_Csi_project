@@ -116,5 +116,12 @@ urlpatterns = [
     path('search_clients/', views.search_clients, name='search_clients'),
     # 2. 리스트 클릭 시 MSSQL 상세 내역 호출용 PATH
     path('get_project_full_details/', views.get_project_full_details, name='get_project_full_details'),
-    
+    path('save_consulting_memo/', views.save_consulting_memo, name='save_consulting_memo'),
+    path('get_consulting_history/', views.get_consulting_history, name='get_consulting_history'),
+    # board/urls.py 에 추가
+    path('get_active_tasks/', views.get_active_tasks, name='get_active_tasks'),
+    path('complete_task/', views.complete_task, name='complete_task'),
+    path('get_calendar_events/', views.get_calendar_events, name='get_calendar_events'),
+    # 폴더 관리 (생성 및 열기) 경로 추가
+    path('manage_folder/', views.manage_folder, name='manage_folder'),
 ]
