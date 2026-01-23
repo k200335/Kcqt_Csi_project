@@ -87,6 +87,12 @@
             <div class="p-3 border-bottom bg-light">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="fw-bold mb-0 small"><i class="bi bi-person-lines-fill me-2"></i>담당자 검색</h6>
+                    
+                    <div class="form-check form-switch ms-auto me-2">
+                        <input class="form-check-input" type="checkbox" id="copy_current_info" style="cursor:pointer;">
+                        <label class="form-check-label small fw-bold" for="copy_current_info" style="cursor:pointer; font-size: 0.75rem;">기존정보 활용</label>
+                    </div>
+
                     <button type="button" class="btn btn-success btn-sm btn-register-plus" onclick="openRegisterModal()">
                         <i class="bi bi-person-plus-fill"></i>
                     </button>
@@ -197,20 +203,23 @@
             </div>
             <div class="modal-body p-4">
                 <form id="clientRegForm">
-                    {% csrf_token %} <div class="row g-3 mb-3">
+                    {% csrf_token %}
+                    <input type="hidden" id="reg_client_id" name="reg_client_id"> 
+                    <div class="row g-3 mb-3">
+                       
                         <div class="col-6">
                             <label class="form-label small fw-bold">담당자 성함</label>
-                            <input type="text" class="form-control form-control-sm" name="reg_name" required placeholder="예: 김철수">
+                            <input type="text" class="form-control form-control-sm" id="reg_name" name="reg_name" required placeholder="예: 김철수">                            
                         </div>
                         <div class="col-6">
                             <label class="form-label small fw-bold">연락처 (Unique)</label>
-                            <input type="text" class="form-control form-control-sm" name="reg_phone" required placeholder="010-0000-0000">
+                            <input type="text" class="form-control form-control-sm" id="reg_phone" name="reg_phone" required placeholder="010-0000-0000">
                         </div>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label small fw-bold">이메일 주소</label>
-                        <input type="email" class="form-control form-control-sm" name="reg_email" placeholder="example@email.com">
+                        <input type="email" class="form-control form-control-sm" id="reg_email" name="reg_email" placeholder="example@email.com">
                     </div>
 
                     <div class="p-3 bg-light rounded-3 mb-3 border">
@@ -239,22 +248,53 @@
 var calendar;
 let currentClientId = null; 
 
+// 스크립트 시작 부분에 추가
+let tempClientData = { 
+    name: '', 
+    phone: '', 
+    email: '', 
+    company: '', 
+    projectName: '', // 추가
+    clientId: null   // 추가
+};
+
 // 1. 모달 열기 함수 (중복 생성 방지 로직 추가)
-    window.openRegisterModal = function() {
-        const modalEl = document.getElementById('registerModal');
-        if (modalEl) {
-            if (typeof bootstrap !== 'undefined') {
-                // 기존에 생성된 모달이 있으면 그것을 쓰고, 없으면 새로 만듭니다.
-                let myModal = bootstrap.Modal.getInstance(modalEl);
-                if (!myModal) {
-                    myModal = new bootstrap.Modal(modalEl);
-                }
-                myModal.show();
-            } else {
-                alert("Bootstrap 로딩 중...");
-            }
+
+window.openRegisterModal = function() {
+    const modalEl = document.getElementById('registerModal');
+    if (!modalEl) return;
+
+    // 1. 초기화 (모달 열 때마다 이전 ID 삭제)
+    $('#reg_client_id').val(''); 
+    $('#reg_name, #reg_phone, #reg_company, #reg_email, #reg_project_name').val('');
+
+    // 2. '기존정보 활용' 체크 시 데이터 채우기
+    if ($('#copy_current_info').is(':checked')) {
+        
+        if (!tempClientData.name) {
+            alert("먼저 왼쪽 리스트에서 현장명을 클릭해 주세요!");
+            return;
         }
-    };
+
+        // [핵심] Hidden 필드에 DB ID(PK) 값을 넣어줍니다.
+        $('#reg_client_id').val(tempClientData.clientId); 
+
+        // 다른 필드들도 채워줍니다.
+        $('#reg_name').val(tempClientData.name);
+        $('#reg_phone').val(tempClientData.phone);
+        $('#reg_email').val(tempClientData.email);
+        $('#reg_project_name').val(tempClientData.projectName);
+        $('#reg_company').val(tempClientData.company);
+        
+        console.log("모달에 주입된 ID:", tempClientData.clientId); // 확인용 로그
+        setTimeout(() => $('#reg_project_name').focus(), 500);
+    }
+
+    let myModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    myModal.show();
+};
+
+
 
     // 2. [사업명 확인] 버튼 클릭 시 MSSQL 데이터 조회
     // HTML 버튼의 onclick="checkMsProject()"를 "checkProject()"로 바꾸거나 아래 이름을 맞춤
@@ -401,25 +441,37 @@ function search_clients() {
                     // 2. [HTML 생성] 따옴표 에러 방지를 위해 문자열 합치기 사용
                     for (var k in grouped) {
                         var client = grouped[k];
-                        var emailStr = client.email ? " | " + client.email : "";
+                        // 이메일 기호 처리
+                        var emailRaw = client.email ? client.email : "";
 
-                        html += '<div class="contact-card mb-2 shadow-sm" style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; background: #fff;">';
-                        html +=   '<div class="d-flex justify-content-between align-items-start">';
+                        html += '<div class="contact-card mb-2 shadow-sm"...>';
+                        html +=   '<div class="d-flex...">';
                         html +=     '<div>';
-                        html +=       '<span class="fw-bold" style="font-size: 1.1rem;">' + client.name + '</span>';
+                        // ★ 성함에 class="info-name-source" 추가
+                        html +=       '<span class="fw-bold info-name-source" style="font-size: 1.1rem;">' + client.name + '</span>';
                         html +=       '<div class="text-muted small">';
-                        html +=         '<i class="bi bi-telephone"></i> ' + client.phone + emailStr;
+                        // ★ 전화번호에 class="info-phone-source" 추가
+                        html +=         '<i class="bi bi-telephone"></i> <span class="info-phone-source">' + client.phone + '</span>';
+                        // ★ 이메일에 class="info-email-source" 추가
+                        html +=         ' | <span class="info-email-source">' + emailRaw + '</span>';
                         html +=       '</div>';
                         html +=     '</div>';
-                        html +=   '</div>';
-                        html +=   '<div class="mt-2">';
 
                         // 해당 고객에게 속한 모든 현장(프로젝트) 나열
                         for (var j = 0; j < client.projects.length; j++) {
                             var p = client.projects[j];
+                            
+                            // search_clients 함수 내부, html 만드는 곳 바로 위
+                            // console.log("--------------------------------------");
+                            // console.log("현장명(p.reg_project_name):", p.reg_project_name);
+                            // console.log("성함(client.name):", client.name);  // <--- 여기가 비어있을 확률 높음
+                            // console.log("번호(client.phone):", client.phone);
+                            // console.log("이메일(client.email):", client.email);
+                            // console.log("--------------------------------------");
+                            
                             // 백틱 대신 일반 따옴표를 사용하여 onclick 인자 전달 (가장 안전한 방식)
                             html += '<div class="mt-1 small ps-2 border-start border-primary text-primary" style="cursor:pointer;" ';
-                            html += '     onclick="load_financial_report(\'' + p.reg_project_name + '\', \'' + p.id + '\', \'' + client.name + '\', \'' + client.phone + '\')">';
+                            html += ' onclick="load_financial_report(\'' + p.reg_project_name + '\', \'' + p.id + '\', \'' + client.name + '\', \'' + client.phone + '\', \'' + client.email + '\')">';
                             html += '  └ [' + p.reg_company + '] ' + p.reg_project_name;
                             html += '</div>';
                         }
@@ -439,100 +491,17 @@ function search_clients() {
     });
 }
 
-
-
-// function load_financial_report(projectName, clientId, name, phone) {
-//     // 1. 전역 변수 및 화면 텍스트 업데이트
-//     currentClientId = clientId; 
-    
-//     $('#info_name').text(name); 
-//     $('#info_phone').text(phone);
-//     $('#selected_project_name').text(projectName); 
-//     $('#current_project_title').text(projectName); 
-
-//     // 2. 로딩 표시
-//     $('#project_detail_list').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div> 데이터를 불러오는 중...</td></tr>');
-//     $('#memo_history_area').html('<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-secondary"></div></div>');
-
-//     // 3. [AJAX 1] MSSQL에서 정산/현장 데이터 불러오기
-//     $.ajax({
-//         url: '/get_project_full_details/',
-//         type: 'GET',
-//         data: { 
-//             'project_name': projectName,
-//             'client_id': clientId 
-//         },
-//         success: function(response) {
-//             if (response.status === 'success') {
-//                 let html = '';
-//                 if (response.data && response.data.length > 0) {
-//                     response.data.forEach(function(row) {
-//                         const supplyValue = row.supply_value ? Number(row.supply_value).toLocaleString() : '0';
-//                         const depositValue = row.deposit ? Number(row.deposit).toLocaleString() : '0';
-
-//                         html += `
-//                             <tr>
-//                                 <td class="text-center">${row.request_code || '-'}</td>
-//                                 <td class="text-center">${row.receipt_code || '-'}</td>
-//                                 <td class="text-center">${row.save_date || '-'}</td>
-//                                 <td>${row.specimen || '-'}</td>
-//                                 <td class="text-end fw-bold">${supplyValue}</td>
-//                                 <td class="text-center">${row.deposit_day || '-'}</td>
-//                                 <td class="text-end text-success fw-bold">${depositValue}</td>
-//                                 <td>${row.company || '-'}</td>
-//                                 <td class="text-center">${row.issue_date || '-'}</td>
-//                             </tr>`;
-//                     });
-//                 } else {
-//                     html = '<tr><td colspan="9" class="text-center py-4 text-muted">해당 현장의 정산 내역이 없습니다.</td></tr>';
-//                 }
-//                 $('#project_detail_list').html(html);
-//             }
-//         },
-//         error: function() {
-//             $('#project_detail_list').html('<tr><td colspan="9" class="text-center py-4 text-danger">서버 통신 실패</td></tr>');
-//         }
-//     });
-
-//     // 4. [AJAX 2] 과거 상담 히스토리 불러오기 (함수 내부로 포함시켰습니다!)
-//     $.ajax({
-//         url: '/get_consulting_history/',
-//         type: 'GET',
-//         data: { 'client_id': clientId },
-//         success: function(response) {
-//             if (response.status === 'success') {
-//                 let html = '';
-//                 if (response.data && response.data.length > 0) {
-//                     response.data.forEach(function(memo) {
-//                         let badgeClass = 'bg-secondary'; 
-//                         if(memo.category === '시험예약') badgeClass = 'bg-success';
-//                         else if(memo.category === '세발예약') badgeClass = 'bg-warning text-dark';
-//                         else if(memo.category === '견적예약') badgeClass = 'bg-info text-dark';
-//                         else if(memo.category === '입찰예약') badgeClass = 'bg-dark';
-
-//                         html += `
-//                             <div class="card mb-2 shadow-sm">
-//                                 <div class="card-body p-2">
-//                                     <div class="d-flex justify-content-between mb-1">
-//                                         <span class="badge ${badgeClass}">${memo.category}</span>
-//                                         <small class="text-muted">${memo.date}</small>
-//                                     </div>
-//                                     <p class="card-text small mb-0">${memo.content.replace(/\n/g, '<br>')}</p>
-//                                 </div>
-//                             </div>`;
-//                     });
-//                 } else {
-//                     html = '<div class="text-center text-muted small p-3">과거 상담 내역이 없습니다.</div>';
-//                 }
-//                 $('#memo_history_area').html(html); 
-//             }
-//         }
-//     });
-// }
 // ---------------------------위 코드 1시15분 까지 정상작동 되던 코드임----------
 
-function load_financial_report(projectName, clientId, name, phone) {
+function load_financial_report(projectName, clientId, name, phone,email) {
     // 1. 전역 변수 및 화면 텍스트 업데이트
+    tempClientData.projectName = projectName;
+    tempClientData.clientId = clientId;
+    tempClientData.name = name;
+    tempClientData.phone = phone;
+    tempClientData.email = email || '';
+    
+    
     currentClientId = clientId; 
     
     $('#info_name').text(name); 
@@ -871,20 +840,42 @@ function updateMemo(memoId) {
         },
         success: function(res) {
             if (res.status === 'success') {
+                // 1. 왼쪽 상담 히스토리 갱신
+                load_financial_report(
+                    $('#selected_project_name').text(), 
+                    currentClientId, 
+                    $('#info_name').text(), 
+                    $('#info_phone').text()
+                );
+                
+                // 2. ★ 사용자님의 실제 함수명인 load_active_tasks()로 연결 ★
+                // DB 반영 시간을 위해 살짝 지연 실행합니다.
+                setTimeout(function() {
+                    if (typeof load_active_tasks === 'function') {
+                        load_active_tasks(); // 언더바(_) 확인 완료!
+                        console.log("우측 업무 예약 리스트 새로고침 실행됨");
+                    }
+                    // ★ 카렌더 이벤트 새로고침 추가
+                    if (typeof calendar !== 'undefined' && calendar !== null) {
+                        calendar.refetchEvents(); 
+                        console.log("카렌더 동기화 완료");
+                    }
+                }, 200); 
+
                 alert("수정되었습니다.");
-                // 화면 리프레시
-                load_financial_report($('#selected_project_name').text(), currentClientId, $('#info_name').text(), $('#info_phone').text());
             } else {
                 alert("수정 실패: " + res.message);
             }
         },
-        error: function() { alert("서버 통신 중 오류가 발생했습니다."); }
+        error: function() { 
+            alert("서버와 통신 중 오류가 발생했습니다."); 
+        }
     });
 }
 
 // 4. 메모 삭제 실행
 function deleteMemo(memoId) {
-    if (!confirm("이 상담 메모를 삭제하시겠습니까?\n(예약된 업무 리스트는 유지됩니다.)")) return;
+    if (!confirm("이 상담 메모를 삭제하시겠습니까?\n연결된 '업무 예약'도 함께 삭제됩니다.")) return;
 
     $.ajax({
         url: '/delete_memo/',
@@ -895,13 +886,40 @@ function deleteMemo(memoId) {
         },
         success: function(res) {
             if (res.status === 'success') {
-                // 부드럽게 화면에서 제거
-                $(`#memo-card-${memoId}`).fadeOut(300, function() { $(this).remove(); });
+                // 1. 왼쪽 메모 카드 즉시 제거
+                $(`#memo-card-${memoId}`).fadeOut(300, function() { 
+                    $(this).remove(); 
+                });
+                
+                // 2. 시간차를 두고 우측 리스트와 왼쪽 리포트 전체를 새로고침
+                setTimeout(function() {
+                    console.log("삭제 후 리스트 갱신 시작...");
+                    
+                    // 우측 업무 리스트 갱신
+                    if (typeof load_active_tasks === 'function') {
+                        load_active_tasks();
+                    }
+                    // ★ 삭제 후 카렌더 동기화 ★
+                    if (typeof calendar !== 'undefined' && calendar !== null) {
+                        calendar.refetchEvents();
+                    }
+                    
+                    // 왼쪽 전체 리포트 갱신 (전체 카운트 등을 맞추기 위해)
+                    load_financial_report(
+                        $('#selected_project_name').text(), 
+                        currentClientId, 
+                        $('#info_name').text(), 
+                        $('#info_phone').text()
+                    );
+                }, 500); // 안전하게 0.5초 대기
+
             } else {
                 alert("삭제 실패: " + res.message);
             }
         },
-        error: function() { alert("서버 통신 중 오류가 발생했습니다."); }
+        error: function() { 
+            alert("서버와 통신 중 오류가 발생했습니다."); 
+        }
     });
 }
 </script>

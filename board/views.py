@@ -2737,26 +2737,51 @@ def get_project_full_details(request):
 @csrf_exempt # 실제 서비스에선 CSRF 토큰을 사용하는 것이 안전합니다
 def save_consulting_memo(request):
     if request.method == 'POST':
+        memo_id = request.POST.get('memo_id') # 수정 시 필요한 상담 PK
         client_id = request.POST.get('client_id')
         project_name = request.POST.get('project_name')
         category = request.POST.get('category')
         content = request.POST.get('content')
         
         try:
-            with connections['default'].cursor() as cursor:
-                # 방금 만든 consulting_memos 테이블에 데이터 삽입
-                sql = """
-                    INSERT INTO consulting_memos (client_id, project_name, category, content)
-                    VALUES (%s, %s, %s, %s)
-                """
-                cursor.execute(sql, [client_id, project_name, category, content])
+            with transaction.atomic(): # 상담과 업무예약 수정을 하나의 묶음으로 처리
+                with connections['default'].cursor() as cursor:
+                    if memo_id: # [수정 모드]
+                        # 1. 상담 히스토리 업데이트
+                        sql_update_memo = """
+                            UPDATE consulting_memos 
+                            SET category=%s, content=%s, project_name=%s
+                            WHERE id=%s
+                        """
+                        cursor.execute(sql_update_memo, [category, content, project_name, memo_id])
+                        
+                        # 2. 연관된 업무 예약(Task)도 함께 수정
+                        # (상담 내용이 바뀌면 캘린더/우측리스트에 나오는 Task 내용도 변경)
+                        if '예약' in category:
+                            sql_update_task = """
+                                UPDATE task_management 
+                                SET category=%s, content=%s, project_name=%s
+                                WHERE client_id=%s AND created_at >= (SELECT created_at - INTERVAL 1 MINUTE FROM consulting_memos WHERE id=%s)
+                                LIMIT 1
+                            """
+                            # 참고: 더 정확한 연동을 위해선 consulting_memos에 task_id 컬럼을 추가하는 것이 가장 좋습니다.
+                            cursor.execute(sql_update_task, [category, content, project_name, client_id, memo_id])
+
+                    else: # [신규 등록 모드]
+                        # 기존 코드 유지
+                        sql_memo = "INSERT INTO consulting_memos (client_id, project_name, category, content) VALUES (%s, %s, %s, %s)"
+                        cursor.execute(sql_memo, [client_id, project_name, category, content])
+                        
+                        if '예약' in category:
+                            sql_task = """
+                                INSERT INTO task_management (client_id, project_name, category, content, start_date)
+                                VALUES (%s, %s, %s, %s, CURDATE())
+                            """
+                            cursor.execute(sql_task, [client_id, project_name, category, content])
             
             return JsonResponse({'status': 'success'})
         except Exception as e:
-            print(f"메모 저장 에러: {str(e)}")
             return JsonResponse({'status': 'error', 'message': str(e)})
-            
-    return JsonResponse({'status': 'error', 'message': '잘못된 요청 방식입니다.'})
 
 
 # ------------------------------과거상담 기록 출력--------------str
@@ -2892,66 +2917,7 @@ def get_calendar_events(request):
     # ------------------------폴더생성관리------------str
     
             
-# def manage_folder(request):
-#     # GET 또는 POST 방식 모두에서 데이터를 가져옵니다.
-#     if request.method == 'POST':
-#         action = request.POST.get('action')
-#         client_id_raw = request.POST.get('client_id', 'unknown')
-#         name = request.POST.get('name', '이름없음')
-#         phone = request.POST.get('phone', '000-0000-0000').replace('-', '')
-#         project_name = request.POST.get('project_name', '사업명미정')
-#     else:
-#         action = request.GET.get('action')
-#         client_id_raw = request.GET.get('client_id', 'unknown')
-#         name = request.GET.get('name', '이름없음')
-#         phone = request.GET.get('phone', '000-0000-0000').replace('-', '')
-#         project_name = request.GET.get('project_name', '사업명미정')
 
-#     # --- [수정] ID 가공 로직: 3자리 숫자로 변환 (예: 5 -> 505) ---
-#     formatted_id = client_id_raw
-#     if client_id_raw.isdigit():
-#         cid = int(client_id_raw)
-#         if cid < 100:
-#             # 100 미만인 경우 500을 더해 500번대로 진입 (5 -> 505)
-#             formatted_id = str(cid + 500)
-#         else:
-#             # 100 이상인 경우 3자리 유지 (예: 101 -> 101)
-#             formatted_id = str(cid).zfill(3)
-#     else:
-#         # 숫자가 아닌 경우 최소 3자리 빈칸 채우기
-#         formatted_id = client_id_raw.zfill(3)
-
-#     # 1. 사용자님이 지정하신 기본 경로
-#     base_root = r"F:\20160116_내자료\007_업무_영업팀\010_일반상담 견적요청 자료보관"
-    
-#     # 2. 폴더명 규칙: 새 ID_이름_전화번호 (formatted_id 사용)
-#     client_folder_name = f"{formatted_id}_{name}_{phone}"
-    
-#     # 3. 전체 경로 생성 (기본경로\담당자폴더\사업명)
-#     target_path = os.path.join(base_root, client_folder_name, project_name)
-
-#     # --- 이하 생성 및 열기 로직 동일 ---
-#     if action == 'create':
-#         try:
-#             if not os.path.exists(target_path):
-#                 os.makedirs(target_path)
-#                 return JsonResponse({'status': 'success', 'message': f'폴더[{formatted_id}]가 생성되었습니다.'})
-#             else:
-#                 return JsonResponse({'status': 'exists', 'message': '이미 폴더가 존재합니다.'})
-#         except Exception as e:
-#             return JsonResponse({'status': 'error', 'message': f'생성 실패: {str(e)}'})
-
-#     elif action == 'open':
-#         try:
-#             if os.path.exists(target_path):
-#                 os.startfile(target_path)
-#                 return JsonResponse({'status': 'success'})
-#             else:
-#                 return JsonResponse({'status': 'error', 'message': '폴더를 찾을 수 없습니다.'})
-#         except Exception as e:
-#             return JsonResponse({'status': 'error', 'message': f'열기 실패: {str(e)}'})
-
-#     return JsonResponse({'status': 'error', 'message': '잘못된 요청입니다.'})
 
 def manage_folder(request):
     # 1. 데이터 가져오기 (POST 우선, 없으면 GET)
@@ -3030,7 +2996,7 @@ def save_client_project(request):
             old_phone = client.reg_phone.replace('-', '')
             old_project = client.reg_project_name
             
-            base_dir = "D:/정산관리"  # 실제 사용하는 상위 경로로 수정하세요
+            base_dir = "F:\20160116_내자료\007_업무_영업팀\010_일반상담 견적요청 자료보관"  # 실제 사용하는 상위 경로로 수정하세요
             old_folder_path = os.path.join(base_dir, f"{old_name}_{old_phone}", old_project)
             new_folder_path = os.path.join(base_dir, f"{new_name}_{new_phone}", new_project_name)
 
@@ -3078,24 +3044,44 @@ def save_client_project(request):
 @csrf_exempt
 def update_memo(request):
     if request.method == 'POST':
-        # 프론트엔드에서 보낸 id와 내용을 받음
         memo_id = request.POST.get('memo_id')
         new_content = request.POST.get('content')
         
-        if not memo_id or memo_id == 'undefined':
-            return JsonResponse({'status': 'error', 'message': '메모 ID가 전달되지 않았습니다.'}, status=400)
-
         try:
-            with connections['default'].cursor() as cursor:
-                # DB 구조 이미지의 테이블명 'consulting_memos' 사용
-                # PK인 id는 INT이므로 int(memo_id)로 형변환
-                sql = "UPDATE consulting_memos SET content = %s WHERE id = %s"
-                cursor.execute(sql, [new_content, int(memo_id)])
-            
+            with transaction.atomic():
+                with connections['default'].cursor() as cursor:
+                    # 1. 수정 전의 원본 데이터 정보 가져오기
+                    cursor.execute("""
+                        SELECT client_id, category, content 
+                        FROM consulting_memos WHERE id = %s
+                    """, [memo_id])
+                    row = cursor.fetchone()
+                    if not row:
+                        return JsonResponse({'status': 'error', 'message': '메모 없음'})
+                    
+                    client_id, category, old_content = row
+
+                    # 2. 상담 메모 본체 수정
+                    cursor.execute("UPDATE consulting_memos SET content = %s WHERE id = %s", [new_content, memo_id])
+
+                    # 3. 업무 예약(task_management) 동기화
+                    if '예약' in category:
+                        # [보정된 로직] 같은 고객이고, 수정 전의 내용(old_content)을 가진 가장 최근 Task를 찾아 수정
+                        sql_update_task = """
+                            UPDATE task_management 
+                            SET content = %s 
+                            WHERE client_id = %s 
+                            AND content = %s
+                            ORDER BY created_at DESC 
+                            LIMIT 1
+                        """
+                        cursor.execute(sql_update_task, [new_content, client_id, old_content])
+
             return JsonResponse({'status': 'success'})
         except Exception as e:
-            print(f"Update Error: {str(e)}")
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+            return JsonResponse({'status': 'error', 'message': str(e)})
+        
+
 
 @csrf_exempt
 def delete_memo(request):
@@ -3103,12 +3089,28 @@ def delete_memo(request):
         memo_id = request.POST.get('memo_id')
         
         try:
-            with connections['default'].cursor() as cursor:
-                # 상담 히스토리 삭제
-                sql = "DELETE FROM consulting_memos WHERE id = %s"
-                cursor.execute(sql, [int(memo_id)])
-                
+            with transaction.atomic():
+                with connections['default'].cursor() as cursor:
+                    # 1. 삭제 전, 해당 메모의 내용(content)과 고객ID를 미리 가져옵니다.
+                    cursor.execute("SELECT client_id, content, category FROM consulting_memos WHERE id = %s", [memo_id])
+                    row = cursor.fetchone()
+                    
+                    if row:
+                        client_id, content, category = row
+                        
+                        # 2. 상담 메모 삭제
+                        cursor.execute("DELETE FROM consulting_memos WHERE id = %s", [memo_id])
+
+                        # 3. 예약 관련 카테고리라면 업무 예약 테이블에서도 삭제
+                        if '예약' in category:
+                            # 동일 고객, 동일 내용인 가장 최근 업무를 삭제
+                            sql_delete_task = """
+                                DELETE FROM task_management 
+                                WHERE client_id = %s 
+                                AND TRIM(content) = TRIM(%s)
+                            """
+                            cursor.execute(sql_delete_task, [client_id, content])
+
             return JsonResponse({'status': 'success'})
         except Exception as e:
-            print(f"Delete Error: {str(e)}")
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+            return JsonResponse({'status': 'error', 'message': str(e)})
