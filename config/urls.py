@@ -124,4 +124,9 @@ urlpatterns = [
     path('get_calendar_events/', views.get_calendar_events, name='get_calendar_events'),
     # 폴더 관리 (생성 및 열기) 경로 추가
     path('manage_folder/', views.manage_folder, name='manage_folder'),
+    # 메모 수정삭제
+    # path('update_memo/', views.update_memo, name='update_memo'),
+    # path('delete_memo/', views.delete_memo, name='delete_memo'),
+    # # 현장 저장/수정 관련 (추가할 부분)
+    # path('save_client_project/', views.save_client_project, name='save_client_project'),
 ]

@@ -33,7 +33,7 @@ import pythoncom
 from django.conf import settings
 import uuid # 고유 파일명을 위해 추가
 from .models import ClientProject
-
+from .models import ConsultMemo 
 
 
 
@@ -2890,63 +2890,210 @@ def get_calendar_events(request):
     # ------------------------폴더생성관리------------str
     
             
+# def manage_folder(request):
+#     # GET 또는 POST 방식 모두에서 데이터를 가져옵니다.
+#     if request.method == 'POST':
+#         action = request.POST.get('action')
+#         client_id_raw = request.POST.get('client_id', 'unknown')
+#         name = request.POST.get('name', '이름없음')
+#         phone = request.POST.get('phone', '000-0000-0000').replace('-', '')
+#         project_name = request.POST.get('project_name', '사업명미정')
+#     else:
+#         action = request.GET.get('action')
+#         client_id_raw = request.GET.get('client_id', 'unknown')
+#         name = request.GET.get('name', '이름없음')
+#         phone = request.GET.get('phone', '000-0000-0000').replace('-', '')
+#         project_name = request.GET.get('project_name', '사업명미정')
+
+#     # --- [수정] ID 가공 로직: 3자리 숫자로 변환 (예: 5 -> 505) ---
+#     formatted_id = client_id_raw
+#     if client_id_raw.isdigit():
+#         cid = int(client_id_raw)
+#         if cid < 100:
+#             # 100 미만인 경우 500을 더해 500번대로 진입 (5 -> 505)
+#             formatted_id = str(cid + 500)
+#         else:
+#             # 100 이상인 경우 3자리 유지 (예: 101 -> 101)
+#             formatted_id = str(cid).zfill(3)
+#     else:
+#         # 숫자가 아닌 경우 최소 3자리 빈칸 채우기
+#         formatted_id = client_id_raw.zfill(3)
+
+#     # 1. 사용자님이 지정하신 기본 경로
+#     base_root = r"F:\20160116_내자료\007_업무_영업팀\010_일반상담 견적요청 자료보관"
+    
+#     # 2. 폴더명 규칙: 새 ID_이름_전화번호 (formatted_id 사용)
+#     client_folder_name = f"{formatted_id}_{name}_{phone}"
+    
+#     # 3. 전체 경로 생성 (기본경로\담당자폴더\사업명)
+#     target_path = os.path.join(base_root, client_folder_name, project_name)
+
+#     # --- 이하 생성 및 열기 로직 동일 ---
+#     if action == 'create':
+#         try:
+#             if not os.path.exists(target_path):
+#                 os.makedirs(target_path)
+#                 return JsonResponse({'status': 'success', 'message': f'폴더[{formatted_id}]가 생성되었습니다.'})
+#             else:
+#                 return JsonResponse({'status': 'exists', 'message': '이미 폴더가 존재합니다.'})
+#         except Exception as e:
+#             return JsonResponse({'status': 'error', 'message': f'생성 실패: {str(e)}'})
+
+#     elif action == 'open':
+#         try:
+#             if os.path.exists(target_path):
+#                 os.startfile(target_path)
+#                 return JsonResponse({'status': 'success'})
+#             else:
+#                 return JsonResponse({'status': 'error', 'message': '폴더를 찾을 수 없습니다.'})
+#         except Exception as e:
+#             return JsonResponse({'status': 'error', 'message': f'열기 실패: {str(e)}'})
+
+#     return JsonResponse({'status': 'error', 'message': '잘못된 요청입니다.'})
+
 def manage_folder(request):
-    # GET 또는 POST 방식 모두에서 데이터를 가져옵니다.
+    # 1. 데이터 가져오기 (POST 우선, 없으면 GET)
     if request.method == 'POST':
-        action = request.POST.get('action')
-        client_id_raw = request.POST.get('client_id', 'unknown')
-        name = request.POST.get('name', '이름없음')
-        phone = request.POST.get('phone', '000-0000-0000').replace('-', '')
-        project_name = request.POST.get('project_name', '사업명미정')
+        data = request.POST
     else:
-        action = request.GET.get('action')
-        client_id_raw = request.GET.get('client_id', 'unknown')
-        name = request.GET.get('name', '이름없음')
-        phone = request.GET.get('phone', '000-0000-0000').replace('-', '')
-        project_name = request.GET.get('project_name', '사업명미정')
+        data = request.GET
 
-    # --- [수정] ID 가공 로직: 3자리 숫자로 변환 (예: 5 -> 505) ---
-    formatted_id = client_id_raw
-    if client_id_raw.isdigit():
-        cid = int(client_id_raw)
-        if cid < 100:
-            # 100 미만인 경우 500을 더해 500번대로 진입 (5 -> 505)
-            formatted_id = str(cid + 500)
-        else:
-            # 100 이상인 경우 3자리 유지 (예: 101 -> 101)
-            formatted_id = str(cid).zfill(3)
-    else:
-        # 숫자가 아닌 경우 최소 3자리 빈칸 채우기
-        formatted_id = client_id_raw.zfill(3)
+    action = data.get('action')
+    name = data.get('name', '이름없음').strip()
+    # 전화번호에서 하이픈 제거 및 공백 제거
+    phone = data.get('phone', '0000').replace('-', '').strip()
+    project_name = data.get('project_name', '사업명미정').strip()
 
-    # 1. 사용자님이 지정하신 기본 경로
+    # 2. 기본 경로 설정
     base_root = r"F:\20160116_내자료\007_업무_영업팀\010_일반상담 견적요청 자료보관"
     
-    # 2. 폴더명 규칙: 새 ID_이름_전화번호 (formatted_id 사용)
-    client_folder_name = f"{formatted_id}_{name}_{phone}"
+    # 3. [중요] 폴더명 규칙 변경 (동일인 통합)
+    # 이제 ID(505, 506) 대신 이름과 전화번호를 1차 폴더명으로 사용합니다.
+    # 이렇게 하면 DB ID가 달라도 이름과 번호가 같으면 같은 폴더로 들어갑니다.
+    client_folder_name = f"{name}_{phone}"
     
-    # 3. 전체 경로 생성 (기본경로\담당자폴더\사업명)
+    # 4. 전체 경로 생성 (기본경로 \ 이름_번호 \ 사업명)
+    # 예: F:\...\심종열_01089968759\대전사옥 신축공사
     target_path = os.path.join(base_root, client_folder_name, project_name)
 
-    # --- 이하 생성 및 열기 로직 동일 ---
+    # --- 생성 로직 ---
     if action == 'create':
         try:
-            if not os.path.exists(target_path):
-                os.makedirs(target_path)
-                return JsonResponse({'status': 'success', 'message': f'폴더[{formatted_id}]가 생성되었습니다.'})
-            else:
-                return JsonResponse({'status': 'exists', 'message': '이미 폴더가 존재합니다.'})
+            # exist_ok=True: 상위 폴더(이름_번호)가 이미 있어도 에러 없이 하위(사업명)만 생성함
+            os.makedirs(target_path, exist_ok=True)
+            return JsonResponse({
+                'status': 'success', 
+                'message': f'[{name}]님의 [{project_name}] 폴더가 준비되었습니다.'
+            })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': f'생성 실패: {str(e)}'})
 
+    # --- 열기 로직 ---
     elif action == 'open':
         try:
             if os.path.exists(target_path):
                 os.startfile(target_path)
                 return JsonResponse({'status': 'success'})
             else:
-                return JsonResponse({'status': 'error', 'message': '폴더를 찾을 수 없습니다.'})
+                # 만약 사업 폴더가 없으면 상위 폴더(고객 폴더)라도 있는지 확인
+                parent_path = os.path.dirname(target_path)
+                if os.path.exists(parent_path):
+                    os.startfile(parent_path)
+                    return JsonResponse({'status': 'success', 'message': '사업 폴더가 없어 고객 폴더를 엽니다.'})
+                
+                return JsonResponse({'status': 'error', 'message': '폴더를 찾을 수 없습니다. 생성을 먼저 눌러주세요.'})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': f'열기 실패: {str(e)}'})
 
-    return JsonResponse({'status': 'error', 'message': '잘못된 요청입니다.'})         
+    return JsonResponse({'status': 'error', 'message': '잘못된 요청입니다.'})
+
+# ----------------------------담담자 및 현장 수정------------------------------str
+def save_client_project(request):
+    data = json.loads(request.body)
+    client_id = data.get('client_id')
+    is_new_project = data.get('is_new_project') # True면 추가, False면 수정
+    
+    new_name = data.get('name')
+    new_phone = data.get('phone', '').replace('-', '') # 하이픈 제거
+    new_project_name = data.get('project_name')
+    new_company = data.get('company')
+
+    if client_id:
+        try:
+            client = Client.objects.get(id=client_id)
+            
+            # [폴더 변경을 위한 준비]
+            # 기존 정보로 폴더 경로 생성
+            old_name = client.reg_name
+            old_phone = client.reg_phone.replace('-', '')
+            old_project = client.reg_project_name
+            
+            base_dir = "D:/정산관리"  # 실제 사용하는 상위 경로로 수정하세요
+            old_folder_path = os.path.join(base_dir, f"{old_name}_{old_phone}", old_project)
+            new_folder_path = os.path.join(base_dir, f"{new_name}_{new_phone}", new_project_name)
+
+            if is_new_project:
+                # 1. 신규 현장 추가 (새 레코드 생성)
+                Client.objects.create(
+                    reg_name=new_name,
+                    reg_phone=data.get('phone'),
+                    reg_company=new_company,
+                    reg_project_name=new_project_name
+                )
+                # 추가일 때는 기존 폴더를 건드릴 필요가 없음 (나중에 폴더생성 버튼 누를 때 만들어짐)
+            
+            else:
+                # 2. 기존 현장 수정 (Update)
+                # 만약 현장명이 바뀌었다면 실제 폴더 이름도 변경 시도
+                if old_project != new_project_name and os.path.exists(old_folder_path):
+                    try:
+                        # 상위 폴더(이름_번호)가 바뀌었을 수도 있으므로 체크 후 변경
+                        parent_path = os.path.join(base_dir, f"{new_name}_{new_phone}")
+                        if not os.path.exists(parent_path):
+                            os.makedirs(parent_path)
+                        
+                        os.rename(old_folder_path, new_folder_path)
+                    except Exception as e:
+                        print(f"폴더명 변경 실패: {e}")
+
+                # DB 정보 업데이트
+                client.reg_name = new_name
+                client.reg_phone = data.get('phone')
+                client.reg_project_name = new_project_name
+                client.reg_company = new_company
+                client.save()
+
+            return JsonResponse({'status': 'success', 'message': '저장되었습니다.'})
+            
+        except Client.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '대상자를 찾을 수 없습니다.'})
+    
+    return JsonResponse({'status': 'error', 'message': '잘못된 요청입니다.'})
+
+# ----------------------------메모 수정 삭제 -------------------str
+
+@csrf_exempt # 테스트를 위해 일단 보안 해제 (나중에 처리 가능)
+def update_memo(request):
+    if request.method == 'POST':
+        memo_id = request.POST.get('memo_id')
+        new_content = request.POST.get('content')
+        
+        try:
+            memo = ConsultMemo.objects.get(id=memo_id)
+            memo.content = new_content
+            memo.save()
+            return JsonResponse({'status': 'success'})
+        except ConsultMemo.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '메모를 찾을 수 없습니다.'})
+
+@csrf_exempt
+def delete_memo(request):
+    if request.method == 'POST':
+        memo_id = request.POST.get('memo_id')
+        
+        try:
+            memo = ConsultMemo.objects.get(id=memo_id)
+            memo.delete()
+            return JsonResponse({'status': 'success'})
+        except ConsultMemo.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '메모를 찾을 수 없습니다.'})

@@ -366,103 +366,229 @@ let currentClientId = null;
         }        
     });
 
+
+// function search_clients() {
+//     const keyword = $('#search_keyword').val();
+    
+//     $.ajax({
+//         url: '/search_clients/',
+//         type: 'GET',
+//         data: { 'keyword': keyword },
+//         // search_clients 함수의 success 콜백 부분
+//         success: function(response) {
+//             if (response.status === 'success') {
+//                 let html = '';
+//                 if (response.data.length > 0) {
+//                     response.data.forEach(function(item) {
+                        
+//                         // 1. 변수를 먼저 정의합니다 (이 위치가 중요합니다!)
+//                         // 만약 DB 컬럼명이 'reg_email'이 아니라면 'item.email' 등으로 맞춰주세요.
+//                         let emailStr = item.reg_email ? ` | ${item.reg_email}` : '';
+                        
+//                         // 2. 그 다음 html 변수에 합칩니다
+//                         html += `
+//                             <div class="contact-card mb-2" style="cursor:pointer;" 
+//                                 onclick="load_financial_report('${item.reg_project_name}', '${item.id}', '${item.reg_name}', '${item.reg_phone}')">
+//                                 <div class="d-flex justify-content-between align-items-start">
+//                                     <div>
+//                                         <span class="fw-bold" style="font-size: 1.1rem;">${item.reg_name}</span>
+//                                         <div class="text-muted small">
+//                                             <i class="bi bi-telephone"></i> ${item.reg_phone} 
+//                                             <span class="text-primary">${emailStr}</span>
+//                                         </div>
+//                                     </div>
+//                                 </div>
+//                                 <div class="mt-2 small ps-2 border-start text-primary">
+//                                     └ [${item.reg_company}] ${item.reg_project_name}
+//                                 </div>
+//                             </div>
+//                         `;
+//                     });
+//                 } else {
+//                     html = '<div class="p-3 text-center text-muted">검색 결과가 없습니다.</div>';
+//                 }
+//                 $('#client_list').html(html);
+//             }
+//         }
+//     });
+// }
+
+
 function search_clients() {
-    const keyword = $('#search_keyword').val();
+    var keyword = $('#search_keyword').val();
     
     $.ajax({
         url: '/search_clients/',
         type: 'GET',
         data: { 'keyword': keyword },
-        // search_clients 함수의 success 콜백 부분
         success: function(response) {
             if (response.status === 'success') {
-                let html = '';
-                if (response.data.length > 0) {
-                    response.data.forEach(function(item) {
+                var html = '';
+                var data = response.data;
+
+                if (data && data.length > 0) {
+                    // 1. [그룹화 로직] 이름+전화번호 기준
+                    var grouped = {};
+                    for (var i = 0; i < data.length; i++) {
+                        var item = data[i];
+                        // 이름과 번호가 같으면 하나로 묶기 위한 Key 생성
+                        var key = (item.reg_name || "무명") + "_" + (item.reg_phone || "0000").replace(/-/g, '');
                         
-                        // 1. 변수를 먼저 정의합니다 (이 위치가 중요합니다!)
-                        // 만약 DB 컬럼명이 'reg_email'이 아니라면 'item.email' 등으로 맞춰주세요.
-                        let emailStr = item.reg_email ? ` | ${item.reg_email}` : '';
-                        
-                        // 2. 그 다음 html 변수에 합칩니다
-                        html += `
-                            <div class="contact-card mb-2" style="cursor:pointer;" 
-                                onclick="load_financial_report('${item.reg_project_name}', '${item.id}', '${item.reg_name}', '${item.reg_phone}')">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <span class="fw-bold" style="font-size: 1.1rem;">${item.reg_name}</span>
-                                        <div class="text-muted small">
-                                            <i class="bi bi-telephone"></i> ${item.reg_phone} 
-                                            <span class="text-primary">${emailStr}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="mt-2 small ps-2 border-start text-primary">
-                                    └ [${item.reg_company}] ${item.reg_project_name}
-                                </div>
-                            </div>
-                        `;
-                    });
+                        if (!grouped[key]) {
+                            grouped[key] = {
+                                name: item.reg_name,
+                                phone: item.reg_phone,
+                                email: item.reg_email || '',
+                                projects: []
+                            };
+                        }
+                        grouped[key].projects.push(item);
+                    }
+
+                    // 2. [HTML 생성] 따옴표 에러 방지를 위해 문자열 합치기 사용
+                    for (var k in grouped) {
+                        var client = grouped[k];
+                        var emailStr = client.email ? " | " + client.email : "";
+
+                        html += '<div class="contact-card mb-2 shadow-sm" style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; background: #fff;">';
+                        html +=   '<div class="d-flex justify-content-between align-items-start">';
+                        html +=     '<div>';
+                        html +=       '<span class="fw-bold" style="font-size: 1.1rem;">' + client.name + '</span>';
+                        html +=       '<div class="text-muted small">';
+                        html +=         '<i class="bi bi-telephone"></i> ' + client.phone + emailStr;
+                        html +=       '</div>';
+                        html +=     '</div>';
+                        html +=   '</div>';
+                        html +=   '<div class="mt-2">';
+
+                        // 해당 고객에게 속한 모든 현장(프로젝트) 나열
+                        for (var j = 0; j < client.projects.length; j++) {
+                            var p = client.projects[j];
+                            // 백틱 대신 일반 따옴표를 사용하여 onclick 인자 전달 (가장 안전한 방식)
+                            html += '<div class="mt-1 small ps-2 border-start border-primary text-primary" style="cursor:pointer;" ';
+                            html += '     onclick="load_financial_report(\'' + p.reg_project_name + '\', \'' + p.id + '\', \'' + client.name + '\', \'' + client.phone + '\')">';
+                            html += '  └ [' + p.reg_company + '] ' + p.reg_project_name;
+                            html += '</div>';
+                        }
+
+                        html +=   '</div>';
+                        html += '</div>';
+                    }
                 } else {
                     html = '<div class="p-3 text-center text-muted">검색 결과가 없습니다.</div>';
                 }
                 $('#client_list').html(html);
             }
+        },
+        error: function() {
+            alert("조회 중 오류가 발생했습니다.");
         }
     });
 }
 
 
+// function load_financial_report(projectName, clientId, name, phone) {
+//     currentClientId = clientId; // 전역변수에 ID 저장
+//     $('#info_name').text(name); 
+//     $('#info_phone').text(phone);
+//     $('#selected_project_name').text(projectName); // 상단 제목 업데이트 (사업명)
+//     $('#current_project_title').text(projectName); // 이 줄을 추가하세요!
+
+//     // --- 1. MSSQL에서 정산/현장 데이터 불러오기 ---
+//     $.ajax({
+//         url: '/get_project_full_details/',
+//         type: 'GET',
+//         data: { 'project_name': projectName },
+//         success: function(response) {
+//             if (response.status === 'success') {
+//                 let html = '';
+//                 if (response.data.length > 0) {
+//                     response.data.forEach(function(row) {
+//                         html += `
+//                             <tr>
+//                                 <td>${row.request_code || '-'}</td>
+//                                 <td>${row.receipt_code || '-'}</td>
+//                                 <td>${row.save_date || '-'}</td>
+//                                 <td>${row.specimen || '-'}</td>
+//                                 <td class="text-end fw-bold">${Number(row.supply_value).toLocaleString()}</td>
+//                                 <td>${row.deposit_day || '-'}</td>
+//                                 <td class="text-end text-success">${Number(row.deposit).toLocaleString()}</td>
+//                                 <td>${row.company || '-'}</td>
+//                                 <td>${row.issue_date || '-'}</td>
+//                             </tr>`;
+//                     });
+//                 } else {
+//                     html = '<tr><td colspan="9" class="text-center py-4">해당 현장의 데이터를 찾을 수 없습니다.</td></tr>';
+//                 }
+//                 $('#project_detail_list').html(html);
+//             }
+//         }
+//     });
+
 
 function load_financial_report(projectName, clientId, name, phone) {
-    currentClientId = clientId; // 전역변수에 ID 저장
+    // 1. 전역 변수 및 화면 텍스트 업데이트
+    currentClientId = clientId; 
+    
     $('#info_name').text(name); 
     $('#info_phone').text(phone);
-    $('#selected_project_name').text(projectName); // 상단 제목 업데이트 (사업명)
-    $('#current_project_title').text(projectName); // 이 줄을 추가하세요!
+    $('#selected_project_name').text(projectName); 
+    $('#current_project_title').text(projectName); 
 
-    // --- 1. MSSQL에서 정산/현장 데이터 불러오기 ---
+    // 2. 로딩 표시
+    $('#project_detail_list').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div> 데이터를 불러오는 중...</td></tr>');
+    $('#memo_history_area').html('<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-secondary"></div></div>');
+
+    // 3. [AJAX 1] MSSQL에서 정산/현장 데이터 불러오기
     $.ajax({
         url: '/get_project_full_details/',
         type: 'GET',
-        data: { 'project_name': projectName },
+        data: { 
+            'project_name': projectName,
+            'client_id': clientId 
+        },
         success: function(response) {
             if (response.status === 'success') {
                 let html = '';
-                if (response.data.length > 0) {
+                if (response.data && response.data.length > 0) {
                     response.data.forEach(function(row) {
+                        const supplyValue = row.supply_value ? Number(row.supply_value).toLocaleString() : '0';
+                        const depositValue = row.deposit ? Number(row.deposit).toLocaleString() : '0';
+
                         html += `
                             <tr>
-                                <td>${row.request_code || '-'}</td>
-                                <td>${row.receipt_code || '-'}</td>
-                                <td>${row.save_date || '-'}</td>
+                                <td class="text-center">${row.request_code || '-'}</td>
+                                <td class="text-center">${row.receipt_code || '-'}</td>
+                                <td class="text-center">${row.save_date || '-'}</td>
                                 <td>${row.specimen || '-'}</td>
-                                <td class="text-end fw-bold">${Number(row.supply_value).toLocaleString()}</td>
-                                <td>${row.deposit_day || '-'}</td>
-                                <td class="text-end text-success">${Number(row.deposit).toLocaleString()}</td>
+                                <td class="text-end fw-bold">${supplyValue}</td>
+                                <td class="text-center">${row.deposit_day || '-'}</td>
+                                <td class="text-end text-success fw-bold">${depositValue}</td>
                                 <td>${row.company || '-'}</td>
-                                <td>${row.issue_date || '-'}</td>
+                                <td class="text-center">${row.issue_date || '-'}</td>
                             </tr>`;
                     });
                 } else {
-                    html = '<tr><td colspan="9" class="text-center py-4">해당 현장의 데이터를 찾을 수 없습니다.</td></tr>';
+                    html = '<tr><td colspan="9" class="text-center py-4 text-muted">해당 현장의 정산 내역이 없습니다.</td></tr>';
                 }
                 $('#project_detail_list').html(html);
             }
+        },
+        error: function() {
+            $('#project_detail_list').html('<tr><td colspan="9" class="text-center py-4 text-danger">서버 통신 실패</td></tr>');
         }
     });
 
-
-        $.ajax({
+    // 4. [AJAX 2] 과거 상담 히스토리 불러오기 (함수 내부로 포함시켰습니다!)
+    $.ajax({
         url: '/get_consulting_history/',
         type: 'GET',
         data: { 'client_id': clientId },
         success: function(response) {
             if (response.status === 'success') {
                 let html = '';
-                if (response.data.length > 0) {
+                if (response.data && response.data.length > 0) {
                     response.data.forEach(function(memo) {
-                        // 카테고리별 색상 로직 수정 (isDone 에러 방지)
                         let badgeClass = 'bg-secondary'; 
                         if(memo.category === '시험예약') badgeClass = 'bg-success';
                         else if(memo.category === '세발예약') badgeClass = 'bg-warning text-dark';
@@ -483,7 +609,6 @@ function load_financial_report(projectName, clientId, name, phone) {
                 } else {
                     html = '<div class="text-center text-muted small p-3">과거 상담 내역이 없습니다.</div>';
                 }
-                // 이 ID가 HTML의 "과거 상담 히스토리" 위치와 일치해야 합니다!
                 $('#memo_history_area').html(html); 
             }
         }
@@ -691,15 +816,5 @@ function manageFolder(actionType) {
         }
     });
 }
-
-
-
-
 </script>
-
-
-
-
-
-
 {% endblock %}
