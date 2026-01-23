@@ -8,6 +8,8 @@ from django.db import connection, connections
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction  # 이 줄이 반드시 있어야 합니다!
 from selenium.webdriver.common.action_chains import ActionChains
+from django.views.decorators.csrf import csrf_exempt
+
 # 셀레늄 및 크롤링 관련
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -2766,9 +2768,9 @@ def get_consulting_history(request):
     
     try:
         with connections['default'].cursor() as cursor:
-            # 해당 담당자의 메모를 최신순으로 가져오는 쿼리
+            # ★ 핵심: SELECT 뒤에 'id'를 반드시 추가하세요!
             sql = """
-                SELECT category, content, 
+                SELECT id, category, content, 
                        DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:%%i') as date
                 FROM consulting_memos 
                 WHERE client_id = %s 
@@ -3072,19 +3074,28 @@ def save_client_project(request):
 
 # ----------------------------메모 수정 삭제 -------------------str
 
-@csrf_exempt # 테스트를 위해 일단 보안 해제 (나중에 처리 가능)
+# 메모 수정 뷰
+@csrf_exempt
 def update_memo(request):
     if request.method == 'POST':
+        # 프론트엔드에서 보낸 id와 내용을 받음
         memo_id = request.POST.get('memo_id')
         new_content = request.POST.get('content')
         
+        if not memo_id or memo_id == 'undefined':
+            return JsonResponse({'status': 'error', 'message': '메모 ID가 전달되지 않았습니다.'}, status=400)
+
         try:
-            memo = ConsultMemo.objects.get(id=memo_id)
-            memo.content = new_content
-            memo.save()
+            with connections['default'].cursor() as cursor:
+                # DB 구조 이미지의 테이블명 'consulting_memos' 사용
+                # PK인 id는 INT이므로 int(memo_id)로 형변환
+                sql = "UPDATE consulting_memos SET content = %s WHERE id = %s"
+                cursor.execute(sql, [new_content, int(memo_id)])
+            
             return JsonResponse({'status': 'success'})
-        except ConsultMemo.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': '메모를 찾을 수 없습니다.'})
+        except Exception as e:
+            print(f"Update Error: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 @csrf_exempt
 def delete_memo(request):
@@ -3092,8 +3103,12 @@ def delete_memo(request):
         memo_id = request.POST.get('memo_id')
         
         try:
-            memo = ConsultMemo.objects.get(id=memo_id)
-            memo.delete()
+            with connections['default'].cursor() as cursor:
+                # 상담 히스토리 삭제
+                sql = "DELETE FROM consulting_memos WHERE id = %s"
+                cursor.execute(sql, [int(memo_id)])
+                
             return JsonResponse({'status': 'success'})
-        except ConsultMemo.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': '메모를 찾을 수 없습니다.'})
+        except Exception as e:
+            print(f"Delete Error: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

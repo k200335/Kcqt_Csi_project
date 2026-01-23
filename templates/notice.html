@@ -367,53 +367,6 @@ let currentClientId = null;
     });
 
 
-// function search_clients() {
-//     const keyword = $('#search_keyword').val();
-    
-//     $.ajax({
-//         url: '/search_clients/',
-//         type: 'GET',
-//         data: { 'keyword': keyword },
-//         // search_clients 함수의 success 콜백 부분
-//         success: function(response) {
-//             if (response.status === 'success') {
-//                 let html = '';
-//                 if (response.data.length > 0) {
-//                     response.data.forEach(function(item) {
-                        
-//                         // 1. 변수를 먼저 정의합니다 (이 위치가 중요합니다!)
-//                         // 만약 DB 컬럼명이 'reg_email'이 아니라면 'item.email' 등으로 맞춰주세요.
-//                         let emailStr = item.reg_email ? ` | ${item.reg_email}` : '';
-                        
-//                         // 2. 그 다음 html 변수에 합칩니다
-//                         html += `
-//                             <div class="contact-card mb-2" style="cursor:pointer;" 
-//                                 onclick="load_financial_report('${item.reg_project_name}', '${item.id}', '${item.reg_name}', '${item.reg_phone}')">
-//                                 <div class="d-flex justify-content-between align-items-start">
-//                                     <div>
-//                                         <span class="fw-bold" style="font-size: 1.1rem;">${item.reg_name}</span>
-//                                         <div class="text-muted small">
-//                                             <i class="bi bi-telephone"></i> ${item.reg_phone} 
-//                                             <span class="text-primary">${emailStr}</span>
-//                                         </div>
-//                                     </div>
-//                                 </div>
-//                                 <div class="mt-2 small ps-2 border-start text-primary">
-//                                     └ [${item.reg_company}] ${item.reg_project_name}
-//                                 </div>
-//                             </div>
-//                         `;
-//                     });
-//                 } else {
-//                     html = '<div class="p-3 text-center text-muted">검색 결과가 없습니다.</div>';
-//                 }
-//                 $('#client_list').html(html);
-//             }
-//         }
-//     });
-// }
-
-
 function search_clients() {
     var keyword = $('#search_keyword').val();
     
@@ -487,44 +440,96 @@ function search_clients() {
 }
 
 
+
 // function load_financial_report(projectName, clientId, name, phone) {
-//     currentClientId = clientId; // 전역변수에 ID 저장
+//     // 1. 전역 변수 및 화면 텍스트 업데이트
+//     currentClientId = clientId; 
+    
 //     $('#info_name').text(name); 
 //     $('#info_phone').text(phone);
-//     $('#selected_project_name').text(projectName); // 상단 제목 업데이트 (사업명)
-//     $('#current_project_title').text(projectName); // 이 줄을 추가하세요!
+//     $('#selected_project_name').text(projectName); 
+//     $('#current_project_title').text(projectName); 
 
-//     // --- 1. MSSQL에서 정산/현장 데이터 불러오기 ---
+//     // 2. 로딩 표시
+//     $('#project_detail_list').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div> 데이터를 불러오는 중...</td></tr>');
+//     $('#memo_history_area').html('<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-secondary"></div></div>');
+
+//     // 3. [AJAX 1] MSSQL에서 정산/현장 데이터 불러오기
 //     $.ajax({
 //         url: '/get_project_full_details/',
 //         type: 'GET',
-//         data: { 'project_name': projectName },
+//         data: { 
+//             'project_name': projectName,
+//             'client_id': clientId 
+//         },
 //         success: function(response) {
 //             if (response.status === 'success') {
 //                 let html = '';
-//                 if (response.data.length > 0) {
+//                 if (response.data && response.data.length > 0) {
 //                     response.data.forEach(function(row) {
+//                         const supplyValue = row.supply_value ? Number(row.supply_value).toLocaleString() : '0';
+//                         const depositValue = row.deposit ? Number(row.deposit).toLocaleString() : '0';
+
 //                         html += `
 //                             <tr>
-//                                 <td>${row.request_code || '-'}</td>
-//                                 <td>${row.receipt_code || '-'}</td>
-//                                 <td>${row.save_date || '-'}</td>
+//                                 <td class="text-center">${row.request_code || '-'}</td>
+//                                 <td class="text-center">${row.receipt_code || '-'}</td>
+//                                 <td class="text-center">${row.save_date || '-'}</td>
 //                                 <td>${row.specimen || '-'}</td>
-//                                 <td class="text-end fw-bold">${Number(row.supply_value).toLocaleString()}</td>
-//                                 <td>${row.deposit_day || '-'}</td>
-//                                 <td class="text-end text-success">${Number(row.deposit).toLocaleString()}</td>
+//                                 <td class="text-end fw-bold">${supplyValue}</td>
+//                                 <td class="text-center">${row.deposit_day || '-'}</td>
+//                                 <td class="text-end text-success fw-bold">${depositValue}</td>
 //                                 <td>${row.company || '-'}</td>
-//                                 <td>${row.issue_date || '-'}</td>
+//                                 <td class="text-center">${row.issue_date || '-'}</td>
 //                             </tr>`;
 //                     });
 //                 } else {
-//                     html = '<tr><td colspan="9" class="text-center py-4">해당 현장의 데이터를 찾을 수 없습니다.</td></tr>';
+//                     html = '<tr><td colspan="9" class="text-center py-4 text-muted">해당 현장의 정산 내역이 없습니다.</td></tr>';
 //                 }
 //                 $('#project_detail_list').html(html);
 //             }
+//         },
+//         error: function() {
+//             $('#project_detail_list').html('<tr><td colspan="9" class="text-center py-4 text-danger">서버 통신 실패</td></tr>');
 //         }
 //     });
 
+//     // 4. [AJAX 2] 과거 상담 히스토리 불러오기 (함수 내부로 포함시켰습니다!)
+//     $.ajax({
+//         url: '/get_consulting_history/',
+//         type: 'GET',
+//         data: { 'client_id': clientId },
+//         success: function(response) {
+//             if (response.status === 'success') {
+//                 let html = '';
+//                 if (response.data && response.data.length > 0) {
+//                     response.data.forEach(function(memo) {
+//                         let badgeClass = 'bg-secondary'; 
+//                         if(memo.category === '시험예약') badgeClass = 'bg-success';
+//                         else if(memo.category === '세발예약') badgeClass = 'bg-warning text-dark';
+//                         else if(memo.category === '견적예약') badgeClass = 'bg-info text-dark';
+//                         else if(memo.category === '입찰예약') badgeClass = 'bg-dark';
+
+//                         html += `
+//                             <div class="card mb-2 shadow-sm">
+//                                 <div class="card-body p-2">
+//                                     <div class="d-flex justify-content-between mb-1">
+//                                         <span class="badge ${badgeClass}">${memo.category}</span>
+//                                         <small class="text-muted">${memo.date}</small>
+//                                     </div>
+//                                     <p class="card-text small mb-0">${memo.content.replace(/\n/g, '<br>')}</p>
+//                                 </div>
+//                             </div>`;
+//                     });
+//                 } else {
+//                     html = '<div class="text-center text-muted small p-3">과거 상담 내역이 없습니다.</div>';
+//                 }
+//                 $('#memo_history_area').html(html); 
+//             }
+//         }
+//     });
+// }
+// ---------------------------위 코드 1시15분 까지 정상작동 되던 코드임----------
 
 function load_financial_report(projectName, clientId, name, phone) {
     // 1. 전역 변수 및 화면 텍스트 업데이트
@@ -581,38 +586,50 @@ function load_financial_report(projectName, clientId, name, phone) {
 
     // 4. [AJAX 2] 과거 상담 히스토리 불러오기 (함수 내부로 포함시켰습니다!)
     $.ajax({
-        url: '/get_consulting_history/',
-        type: 'GET',
-        data: { 'client_id': clientId },
-        success: function(response) {
-            if (response.status === 'success') {
-                let html = '';
-                if (response.data && response.data.length > 0) {
-                    response.data.forEach(function(memo) {
-                        let badgeClass = 'bg-secondary'; 
-                        if(memo.category === '시험예약') badgeClass = 'bg-success';
-                        else if(memo.category === '세발예약') badgeClass = 'bg-warning text-dark';
-                        else if(memo.category === '견적예약') badgeClass = 'bg-info text-dark';
-                        else if(memo.category === '입찰예약') badgeClass = 'bg-dark';
+    url: '/get_consulting_history/',
+    type: 'GET',
+    data: { 'client_id': clientId },
+    success: function(response) {
+        if (response.status === 'success') {
+            let html = '';
+            if (response.data && response.data.length > 0) {
+                response.data.forEach(function(memo) {
+                    let badgeClass = 'bg-secondary'; 
+                    if(memo.category === '시험예약') badgeClass = 'bg-success';
+                    else if(memo.category === '세발예약') badgeClass = 'bg-warning text-dark';
+                    else if(memo.category === '견적예약') badgeClass = 'bg-info text-dark';
+                    else if(memo.category === '입찰예약') badgeClass = 'bg-dark';
 
-                        html += `
-                            <div class="card mb-2 shadow-sm">
-                                <div class="card-body p-2">
-                                    <div class="d-flex justify-content-between mb-1">
+                    html += `
+                        <div class="card mb-2 shadow-sm" id="memo-card-${memo.id}">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <div>
                                         <span class="badge ${badgeClass}">${memo.category}</span>
-                                        <small class="text-muted">${memo.date}</small>
+                                        <small class="text-muted ms-1">${memo.date}</small>
                                     </div>
-                                    <p class="card-text small mb-0">${memo.content.replace(/\n/g, '<br>')}</p>
+                                    <div class="btn-group">
+                                        <button class="btn btn-link p-0 me-2 text-primary" onclick="editMemo('${memo.id}')" title="수정">
+                                            <i class="bi bi-pencil-square" style="font-size: 0.85rem;"></i>
+                                        </button>
+                                        <button class="btn btn-link p-0 text-danger" onclick="deleteMemo('${memo.id}')" title="삭제">
+                                            <i class="bi bi-trash" style="font-size: 0.85rem;"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>`;
-                    });
-                } else {
-                    html = '<div class="text-center text-muted small p-3">과거 상담 내역이 없습니다.</div>';
-                }
-                $('#memo_history_area').html(html); 
+                                <div class="card-text small text-dark" id="memo-content-${memo.id}">
+                                    ${memo.content.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        </div>`;
+                });
+            } else {
+                html = '<div class="text-center text-muted small p-3">과거 상담 내역이 없습니다.</div>';
             }
+            $('#memo_history_area').html(html); 
         }
-    });
+    }
+});
 }
 
 // 메모 저장 함수
@@ -814,6 +831,77 @@ function manageFolder(actionType) {
         error: function() {
             alert("서버 통신 중 오류가 발생했습니다.");
         }
+    });
+}
+
+// -----------------------메모수정삭제------------------
+// 1. 메모 수정 모드 전환
+// 1. 메모 수정 모드 (텍스트 영역을 입력창으로 교체)
+function editMemo(memoId) {
+    const contentDiv = $(`#memo-content-${memoId}`);
+    // br 태그를 다시 줄바꿈 문자로 변경하여 편집창에 넣음
+    const currentText = contentDiv.html().replace(/<br\s*[\/]?>/gi, '\n').trim();
+    
+    const inputHtml = `
+        <textarea id="edit-area-${memoId}" class="form-control form-control-sm mb-1" rows="3" style="font-size: 0.8rem;">${currentText}</textarea>
+        <div class="text-end">
+            <button class="btn btn-xs btn-primary py-0" onclick="updateMemo('${memoId}')">저장</button>
+            <button class="btn btn-xs btn-light py-0 border" onclick="cancelEdit('${memoId}')">취소</button>
+        </div>
+    `;
+    contentDiv.html(inputHtml);
+}
+
+// 2. 수정 취소 (데이터 다시 로드)
+function cancelEdit(memoId) {
+    load_financial_report($('#selected_project_name').text(), currentClientId, $('#info_name').text(), $('#info_phone').text());
+}
+
+// 3. 메모 수정 실행 (서버 전송)
+function updateMemo(memoId) {
+    const newContent = $(`#edit-area-${memoId}`).val();
+
+    $.ajax({
+        url: '/update_memo/',
+        type: 'POST',
+        data: {
+            'memo_id': memoId,
+            'content': newContent,
+            'csrfmiddlewaretoken': '{{ csrf_token }}'
+        },
+        success: function(res) {
+            if (res.status === 'success') {
+                alert("수정되었습니다.");
+                // 화면 리프레시
+                load_financial_report($('#selected_project_name').text(), currentClientId, $('#info_name').text(), $('#info_phone').text());
+            } else {
+                alert("수정 실패: " + res.message);
+            }
+        },
+        error: function() { alert("서버 통신 중 오류가 발생했습니다."); }
+    });
+}
+
+// 4. 메모 삭제 실행
+function deleteMemo(memoId) {
+    if (!confirm("이 상담 메모를 삭제하시겠습니까?\n(예약된 업무 리스트는 유지됩니다.)")) return;
+
+    $.ajax({
+        url: '/delete_memo/',
+        type: 'POST',
+        data: {
+            'memo_id': memoId,
+            'csrfmiddlewaretoken': '{{ csrf_token }}'
+        },
+        success: function(res) {
+            if (res.status === 'success') {
+                // 부드럽게 화면에서 제거
+                $(`#memo-card-${memoId}`).fadeOut(300, function() { $(this).remove(); });
+            } else {
+                alert("삭제 실패: " + res.message);
+            }
+        },
+        error: function() { alert("서버 통신 중 오류가 발생했습니다."); }
     });
 }
 </script>
