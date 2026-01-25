@@ -129,4 +129,5 @@ urlpatterns = [
     path('delete_memo/', views.delete_memo, name='delete_memo'),
     # # 현장 저장/수정 관련 (추가할 부분)
     # path('save_client_project/', views.save_client_project, name='save_client_project'),
+    path('api/get-stats/', views.get_stats, name='get_stats'),
 ]
