@@ -441,7 +441,7 @@ function updateChartData() {
                     el.innerHTML = `
                         ${rSum.toLocaleString()}건 / <span style="color:#2f55d4">발급 ${iSum.toLocaleString()}건</span>
                         <div class="mt-1" style="color:#28a745; font-size: 0.75em; font-weight: bold;">
-                            [의뢰매칭 완료: ${mSum.toLocaleString()}건]
+                            [의뢰번호 매칭 발급완료 건수: ${mSum.toLocaleString()}건]
                         </div>
                         <span class="${colorClass} small" style="font-size: 0.5em; margin-left:5px;">${label}</span>
                     `;
@@ -492,7 +492,7 @@ function updateChartData() {
                 // 녹색선 추가
                 newDatasets.push({
                     type: 'line',
-                    label: '의뢰매칭 완료(녹색)',
+                    label: '의뢰번호 매칭 발급완료 건수(녹색)',
                     data: matchedZigzag,
                     borderColor: '#28a745',
                     borderWidth: 2.5,
@@ -508,7 +508,7 @@ function updateChartData() {
                 // 파란선 추가
                 newDatasets.push({
                     type: 'line',
-                    label: '발급 행위(파랑)',
+                    label: '해당일자 발급 총건수(파랑)',
                     data: issueZigzag,
                     borderColor: '#2f55d4',
                     borderWidth: 2,
