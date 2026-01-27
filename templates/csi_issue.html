@@ -296,15 +296,14 @@ async function fetchQtData(event) {
                 return;
             }
 
-            // 3. 데이터 렌더링 (의뢰번호 | 발급대기일자 | 접수번호 순서)
+            // 3. 데이터 렌더링 (의뢰번호 | 발급대기일자 | 접수번호 순서) <td>${item.cert_no}</td>
             data.results.forEach(item => {
                 tbody.insertAdjacentHTML('beforeend', `
                     <tr>
                         <td class="text-center"><input type="checkbox" class="row-check-2"></td>
                         <td class="text-center"><strong class="text-info">${item.u_id}</strong></td> 
                         <td class="text-center text-danger fw-bold">${item.wait_date}</td>      
-                        <td class="text-center">${item.receipt_no}</td>                      
-                        <td>${item.cert_no}</td>
+                        <td class="text-center">${item.receipt_no}</td>                        
                         <td>${item.seal_name}</td>
                         <td>${item.project_name}</td>
                         <td>${item.agency}</td>
@@ -403,8 +402,8 @@ function downloadExcel2() {
             cells[5].innerText.trim(), // 시험·검사 종목
             cells[6].innerText.trim(), // 공사명
             cells[7].innerText.trim(), // 접수일자
-            cells[8].innerText.trim(), // 시험·검사진행 확정일자
-            cells[9].innerText.trim()  // 진행상태
+            cells[8].innerText.trim() // 시험·검사진행 확정일자
+            // cells[9].innerText.trim()  // 진행상태
         ]);
     });
 

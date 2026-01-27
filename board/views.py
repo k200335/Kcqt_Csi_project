@@ -219,8 +219,8 @@ def save_to_csi_receipts(request):
                     INSERT INTO csi_receipts (
                         의뢰번호, 접수번호, 접수일시, 진행상태, 사업명, 의뢰기관명, 
                         채취자, 봉인명, 처리자, 영업구분, 담당자, 확인, 
-                        시료량, 구분, 현장담당자, 배정일자, 배정현황
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        시료량, 구분, 현장담당자, 배정일자
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                         접수번호 = VALUES(접수번호),
                         접수일시 = VALUES(접수일시),
@@ -236,8 +236,7 @@ def save_to_csi_receipts(request):
                         시료량 = VALUES(시료량),
                         구분 = VALUES(구분),
                         현장담당자 = VALUES(현장담당자),
-                        배정일자 = VALUES(배정일자),
-                        배정현황 = VALUES(배정현황)
+                        배정일자 = VALUES(배정일자)                        
                 """
                 
                 # 3. 데이터 매핑 (KeyError 방지를 위해 .get() 사용)
@@ -248,7 +247,7 @@ def save_to_csi_receipts(request):
                         d.get('sampler'), d.get('seal'), d.get('processor'), 
                         d.get('sales_type'), d.get('manager'), d.get('check_col'),
                         d.get('amount'), d.get('type_col'), d.get('manager_name'), 
-                        d.get('assign_date'), d.get('assignment_history')
+                        d.get('assign_date')
                     ) for d in data_list
                 ]
                 
@@ -568,7 +567,7 @@ def fetch_csi_wait_data(request):
             wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "goSelectLink")))
             time.sleep(2) 
             
-            # 현재 페이지의 첫 번째 성적서 번호를 기억 (페이지 전환 확인용)
+            # 현재 페이지의 첫 번째 성적서 번호를 기억 (페이지 전환 확인용 접수번호 봉인명 시험검사종목 공사명 접수일자 확정일자 대기일자 진행상태)
             first_cert_before = driver.find_elements(By.CLASS_NAME, "goSelectLink")[0].text.strip()
             rows = driver.find_elements(By.CSS_SELECTOR, "table.table-striped tbody tr")
 

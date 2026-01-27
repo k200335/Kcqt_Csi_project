@@ -117,7 +117,8 @@
                     </div>
                 </div>
             </li>
-            <li class="nav-item"><a class="nav-link" href="#" onclick="checkAdminAccess('/notice/')">일정관리</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" onclick="checkAdminAccess('/notice/')">일정관리</a></li>            
+        
         </ul>
     </div>
 </nav>
@@ -563,13 +564,25 @@ function checkAdminAccess(url) {
     const currentUserId = "{{ user.username }}"; // 현재 로그인한 아이디
     
     // 2. 허용된 아이디 리스트
-    const allowedIds = ["admin_work", "admin_home"];
+    const allowedIds = ["admin_work", "admin_home","안월숙"];
 
     if (!isAuthenticated) {
         alert("로그인이 필요한 서비스입니다.");
         location.href = "/login/"; // 로그인 페이지로 유도
         return;
     }
+
+    // --- 추가된 로직: 일정관리 전용 제한 field_payment---
+    if (url.includes('/notice/') && currentUserId !== 'admin_home') {
+        alert("해당 메뉴에 대한 접근 권한이 없습니다.");
+        return;
+    }
+
+    if (url.includes('/field_payment/') && currentUserId !== 'admin_home') {
+        alert("해당 메뉴에 대한 접근 권한이 없습니다.");
+        return;
+    }
+    // ------------------------------------
 
     // 3. 아이디 권한 확인
     if (allowedIds.includes(currentUserId)) {
